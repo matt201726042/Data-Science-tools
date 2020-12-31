@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from dateutil.rrule import rrule, MONTHLY
 import matplotlib.patches as patches
+from dateutil.relativedelta import relativedelta
 
 lines=[]
 
@@ -60,9 +61,11 @@ def kernelRollingAverage(datapointsT, kernel=[[-604800,0,604800], [0,1,0]]): #da
                 if timeDisps[n-1] <= 0 and timeDisps[n] >= 0:
                     middleIndex = n
         
+        win = [x for _,x in sorted(zip(np.abs(timeDisps),[p for p in range(len(timeDisps))]))][:pointsPerTerm-1]
+        winMult = np.abs(timeDisps[win[-1]]) / np.max(kernel[0])
         for otherP in [x for _,x in sorted(zip(np.abs(timeDisps),[p for p in range(len(d[0]))]))][:pointsPerTerm-1]:
             window[0].append(d[1][otherP]) #append the value to the window
-            window[1].append(np.interp([timeDisps[otherP]], kernel[0], kernel[1])[0]) #append the weight to the window
+            window[1].append(np.interp([timeDisps[otherP]], np.array(kernel[0]) * winMult, kernel[1])[0]) #append the weight to the window
         out.append(np.average(window[0], weights=window[1]))
     return out
 
@@ -73,6 +76,7 @@ def drawMonths():
     end_dt = datetime.fromtimestamp(rang[1])
 
     dates = [dt for dt in rrule(MONTHLY, dtstart=strt_dt, until=end_dt)]
+    dates.append(dates[-1] + relativedelta(months=1))
     mTs = []
     for month in dates:
         month = month.replace(day=1)
@@ -84,6 +88,7 @@ def drawMonths():
         pairPerc = (pair) / len(mTs)
         rect = patches.Rectangle((mTs[pair],0),mTs[pair+1]-mTs[pair],1,linewidth=1,facecolor=(0,pairPerc,1-pairPerc,0.15))
         ax.add_patch(rect)
+        plt.text((mTs[pair] + mTs[pair+1]) / 2, 0, dates[pair].strftime('%B'), fontsize=12, horizontalalignment='center')
     pairPerc = 1
     rect = patches.Rectangle((mTs[-1],0),rang[1]-mTs[-1],1,linewidth=1,facecolor=(0,pairPerc,1-pairPerc,0.15))
     ax.add_patch(rect)
@@ -91,7 +96,7 @@ def drawMonths():
 fig,ax = plt.subplots(1)
 
 allOnTheSameGraph = True
-term = 604800 #in seconds, for moving average
+term = 604800 * 2 #in seconds, for moving average
 
 if allOnTheSameGraph:
     rang = 1
@@ -101,8 +106,8 @@ for i in range(rang):
     if allOnTheSameGraph:
         drawMonths()
     for fieldNum in range(len(fieldNames)):
-        if not allOnTheSameGraph:
-            fig.clf() #if you remove this, make sure to normalise.
+        #if not allOnTheSameGraph:
+            #fig.clf() #if you remove this, make sure to normalise.
         tempX = list(datapointsT[0])
         tempY = datapointsT[1+fieldNum]
         noneIndexes = []
@@ -123,9 +128,10 @@ for i in range(rang):
         plt.plot(x, y, linewidth=0.75, alpha=1, label=fieldNames[fieldNum])
         plt.legend()
         if not allOnTheSameGraph:
-            plt.show()
             drawMonths()
+            plt.show()
         else:
             plt.draw()
+            plt.legend()
             plt.pause(0.000000001)
 plt.pause(100000000000)
