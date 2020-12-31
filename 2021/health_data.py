@@ -2,6 +2,8 @@ import os
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
+from dateutil.rrule import rrule, MONTHLY
+import matplotlib.patches as patches
 
 lines=[]
 
@@ -24,6 +26,7 @@ fieldNames = lines[0][:-1].split(",")[1:-1]
 del lines[0]
 
 datapoints = []
+lines = lines[::-1]
 for line in lines:
     splitLine = line.split(",")
     timestamp = "".join(splitLine[:2])[1:-1]
@@ -38,36 +41,68 @@ for line in lines:
     datapoints.append([dt_object_seconds, *fields])
 
 datapointsT = np.transpose(datapoints)
-print(datapointsT)
-print(fieldNames)
-fieldNum = 2
-x = datapointsT[0]
-y = datapointsT[1+fieldNum]
 
 def kernelRollingAverage(datapointsT, kernel=[[-604800,0,604800], [0,1,0]]): #datapointsT should already be filtered for None's
     d = datapointsT
     out = []
+    termNum = (d[0][-1] - d[0][0]) / max(kernel[0])
+    pointsPerTerm = round(len(d[0]) / termNum)
+    
     for p in range(len(d[0])):
         window = [[], []]
+        timeDisps = []
         for otherP in range(len(d[0])): #moving through the kernel window
             timeDisp = (d[0][otherP] - d[0][p])
-            if kernel[0][0] <= timeDisp <= kernel[0][-1]:
-                window[0].append(d[1][otherP]) #append the value to the window
-                window[1].append(np.interp([timeDisp], kernel[0], kernel[1])[0]) #append the weight to the window
+            timeDisps.append(timeDisp)
+    
+        for n in range(len(timeDisps)):
+            if n > 0:
+                if timeDisps[n-1] <= 0 and timeDisps[n] >= 0:
+                    middleIndex = n
+        
+        for otherP in [x for _,x in sorted(zip(np.abs(timeDisps),[p for p in range(len(d[0]))]))][:pointsPerTerm-1]:
+            window[0].append(d[1][otherP]) #append the value to the window
+            window[1].append(np.interp([timeDisps[otherP]], kernel[0], kernel[1])[0]) #append the weight to the window
         out.append(np.average(window[0], weights=window[1]))
     return out
 
+def drawMonths():
+    rang = [datapointsT[0][0], datapointsT[0][-1]]
 
+    strt_dt = datetime.fromtimestamp(rang[0])
+    end_dt = datetime.fromtimestamp(rang[1])
 
-allOnTheSameGraph = False
+    dates = [dt for dt in rrule(MONTHLY, dtstart=strt_dt, until=end_dt)]
+    mTs = []
+    for month in dates:
+        month = month.replace(day=1)
+        month = month.replace(hour=0)
+        month = month.replace(minute=0)
+        month = month.replace(second=0)
+        mTs.append(month.timestamp())
+    for pair in range(len(mTs) - 1):
+        pairPerc = (pair) / len(mTs)
+        rect = patches.Rectangle((mTs[pair],0),mTs[pair+1]-mTs[pair],1,linewidth=1,facecolor=(0,pairPerc,1-pairPerc,0.15))
+        ax.add_patch(rect)
+    pairPerc = 1
+    rect = patches.Rectangle((mTs[-1],0),rang[1]-mTs[-1],1,linewidth=1,facecolor=(0,pairPerc,1-pairPerc,0.15))
+    ax.add_patch(rect)
+
+fig,ax = plt.subplots(1)
+
+allOnTheSameGraph = True
+term = 604800 #in seconds, for moving average
+
 if allOnTheSameGraph:
     rang = 1
 else:
     rang = 100000000000000000
 for i in range(rang):
+    if allOnTheSameGraph:
+        drawMonths()
     for fieldNum in range(len(fieldNames)):
         if not allOnTheSameGraph:
-            plt.clf() #if you remove this, make sure to normalise.
+            fig.clf() #if you remove this, make sure to normalise.
         tempX = list(datapointsT[0])
         tempY = datapointsT[1+fieldNum]
         noneIndexes = []
@@ -83,12 +118,13 @@ for i in range(rang):
         else:
             y = (tempY - np.amin(tempY)) / (np.amax(tempY) - np.amin(tempY)) #normalised?
 
-        y = kernelRollingAverage([x,y])
+        y = kernelRollingAverage([x,y], [[-term,0,term], [0,1,0]])
 
         plt.plot(x, y, linewidth=0.75, alpha=1, label=fieldNames[fieldNum])
         plt.legend()
         if not allOnTheSameGraph:
             plt.show()
+            drawMonths()
         else:
             plt.draw()
             plt.pause(0.000000001)
