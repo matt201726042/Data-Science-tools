@@ -12,11 +12,11 @@ lines=[]
 dirname, filename = os.path.split(os.path.abspath(__file__))
 
 directory = dirname + "\data"
-print(directory)
 
 for root,dirs,files in os.walk(directory):
     for file in files:
         if file.endswith(".csv"):
+            print(directory + "\\" + file)
             f=open(directory + "\\" + file, 'r')
             for line in f:
                 lines.append(line)
@@ -96,7 +96,7 @@ def drawMonths():
 fig,ax = plt.subplots(1)
 
 allOnTheSameGraph = True
-term = 604800 * 2 #in seconds, for moving average
+term = 604800 * 4 #in seconds, for moving average
 
 if allOnTheSameGraph:
     rang = 1
