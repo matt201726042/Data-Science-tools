@@ -134,4 +134,4 @@ for i in range(rang):
             plt.draw()
             plt.legend()
             plt.pause(0.000000001)
-plt.pause(100000000000)
+plt.pause(100)
