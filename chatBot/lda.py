@@ -16,7 +16,7 @@ def LDAtrain(docs):
     corpus = [dictionary.doc2bow(doc) for doc in docs]
 
     # Training the model
-    return models.ldamodel.LdaModel(corpus=corpus, id2word=dictionary, num_topics=5), dictionary
+    return models.ldamodel.LdaModel(corpus=corpus, id2word=dictionary, num_topics=50), dictionary
 
 # data = ["latent Dirichlet allocation (LDA) is a generative statistical model", 
 #             "each document is a mixture of a small number of topics",

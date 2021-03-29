@@ -29,7 +29,7 @@ my_bot = Bot(command_prefix="!", intents=intents)
 #############################################################
 
 contextWProf = [1,0] #Weight profile
-contextLen = 5
+contextLen = 10
 contextWProfInterp = scipy.interpolate.PchipInterpolator(np.linspace(0,contextLen-1, num=len(contextWProf)), contextWProf)
 
 reptWProf = [100,0]
