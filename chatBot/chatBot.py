@@ -51,7 +51,7 @@ def reptWeighter(msg):
             out += reptWProfInterp(delta) * lda.LDAquery(LDAMODEL, LDADICT, [msg["content"], rLOG[i]["content"]])
     return out
 
-imitate = 423192336063922187
+imitate = 316988873710501888
 
 def main():
     try:
