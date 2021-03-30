@@ -18,20 +18,21 @@ def LDAtrain(docs):
     # Training the model
     return models.ldamodel.LdaModel(corpus=corpus, id2word=dictionary, num_topics=50), dictionary
 
-# data = ["latent Dirichlet allocation (LDA) is a generative statistical model", 
-#             "each document is a mixture of a small number of topics",
-#             "each document may be viewed as a mixture of various topics"]
-# model = LDAtrain(data)
+#data = ["latent Dirichlet allocation (LDA) is a generative statistical model", 
+#            "each document is a mixture of a small number of topics",
+#            "each document may be viewed as a mixture of various topics"]
+#model, dictionary = LDAtrain(data)
 
-def LDAquery(model, dictionary, test_doc):
+def LDAquery(model, dictionary, a, b):
+    a.extend([b])
+    test_doc = a
     # Some preprocessing for documents like the training the model
     test_doc = [doc.split() for doc in test_doc]
     test_corpus = [dictionary.doc2bow(doc) for doc in test_doc]
 
     # Method 1
     from gensim.matutils import cossim
-    doc1 = model.get_document_topics(test_corpus[0], minimum_probability=0)
-    doc2 = model.get_document_topics(test_corpus[1], minimum_probability=0)
-    return cossim(doc1, doc2)
+    docs = [model.get_document_topics(tC, minimum_probability=0) for tC in test_corpus]
+    return [cossim(docs[0], docs[i]) for i in range(len(docs))]
 
-# LDAquery(model, ["abc", "fsdgdg"])
+#LDAquery(model, dictionary, ["document gay"], "various topics")

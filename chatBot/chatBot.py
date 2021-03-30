@@ -75,23 +75,22 @@ async def on_message(message):
         realContext = LOG[-contextLen:]
         y = []
         LOGlen = len(LOG) - 1
-        for i in range(len(LOG) - 1):
-            if i % 20 == 0:
+        sims = []
+        y = []
+        for i in range(1, len(LOG)):
+            if i % 40 == 0:
                 print(100 * (i/LOGlen), "%")
-            if i < contextLen:
-                start = 0
-            else:
-                start = (i+1) - contextLen
-            cLen = (i+1)-start
-            context = LOG[start:i+1]
-            msg = LOG[i+1]
-            sims = []
-            weights = []
+            sims.append([])
+            print([c["content"] for c in LOG[:10]])
+            print([c["content"] for c in LOG[:i]], LOG[i]["content"])
+            a = lda.LDAquery(LDAMODEL, LDADICT, [c["content"] for c in LOG[:i]], LOG[i]["content"])
+            for i in range(len(a)):
+                sims[i].append(a)
+            sims[i] = sims[i][-10:]
+            msg = LOG[LOGlen-(i)]["content"]
+            weights = contextWProfInterp([k for k in range((LOGlen+1)-i, 0, -1)])
             rW = reptWeighter(msg)
-            for c in range(cLen):
-                context[c]
-                sims.append(lda.LDAquery(LDAMODEL, LDADICT, [realContext[c]["content"], context[c]["content"]]))
-                weights.append(contextWProfInterp(cLen-c))
+            print(sims, weights)
             y.append((np.average(sims, weights=weights) / rW, msg))
         a = sorted(y, key=lambda x: x[0])
         for i in range(len(a)):
@@ -133,11 +132,12 @@ async def make_logs():
                     sys.stdout.write("Logging {0}:".format(channel.name))
                     sys.stdout.flush()
                     async for message in channel.history(limit=None,after=prevLog):
-                        at = ",".join([i.url for i in message.attachments])
-                        if len(at) > 0:
-                            at = " " + at
-                        message = {"author":message.author.id, "time":message.created_at, "content":message.content + at}
-                        LOG.append(message)
+                        if message.content != '':
+                            at = ",".join([i.url for i in message.attachments])
+                            if len(at) > 0:
+                                at = " " + at
+                            message = {"author":message.author.id, "time":message.created_at, "content":message.content + at}
+                            LOG.append(message)
                         #print((channel.id), (message.author.id, message.created_at, message.content + " " + at))
                     print("\rLogging {0}: [DONE]            ".format(channel.name))
     #print(LOG)
