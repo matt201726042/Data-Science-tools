@@ -53,7 +53,7 @@ def reptWeighter(msg):
             out += reptWProfInterp(delta) * (lda.LDAquery(LDAMODEL, LDADICT, [msg["content"], rLOG[i]["content"]])) #levenshtein.levenshtein(msg["content"], rLOG[i]["content"])
     return out
 
-imitate = 272491648015925249
+imitate = 426856693389983765
 
 def main():
     print("Python script started.")
@@ -77,13 +77,15 @@ async def on_message(message):
             np.save("chatBotLog.npy", LOG)
         
         if message.author.id != 826150125206110208 and message.channel.name == "dorime":
+            myreplyobj = await message.reply("0%", mention_author=False)
             realContext = LOG[-contextLen:]
             y = []
             LOGlen = len(LOG) - 1
             for i in range(len(LOG) - 1):
                 msg = LOG[i+1]
                 if msg["author"] == imitate:
-                    if i % 20 == 0:
+                    if i % 200 == 0:
+                        await myreplyobj.edit(content=str(100 * (i/LOGlen)) + "%")
                         print(100 * (i/LOGlen), "%")
                     if i < contextLen:
                         start = 0
@@ -113,7 +115,7 @@ async def on_message(message):
             print(a[:10])
             print("---------")
             try:
-                await message.channel.send(out[1]["content"])
+                await myreplyobj.edit(content=out[1]["content"])
             except:
                 pass
             if message.content.startswith('!'):
