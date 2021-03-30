@@ -16,7 +16,7 @@ def LDAtrain(docs):
     corpus = [dictionary.doc2bow(doc) for doc in docs]
 
     # Training the model
-    return models.ldamodel.LdaModel(corpus=corpus, id2word=dictionary, num_topics=50), dictionary
+    return models.ldamodel.LdaModel(corpus=corpus, id2word=dictionary, num_topics=5), dictionary
 
 #data = ["latent Dirichlet allocation (LDA) is a generative statistical model", 
 #            "each document is a mixture of a small number of topics",
@@ -33,6 +33,6 @@ def LDAquery(model, dictionary, a, b):
     # Method 1
     from gensim.matutils import cossim
     docs = [model.get_document_topics(tC, minimum_probability=0) for tC in test_corpus]
-    return [cossim(docs[0], docs[i]) for i in range(len(docs))]
+    return [cossim(docs[0], docs[i]) for i in range(1,len(docs))]
 
 #LDAquery(model, dictionary, ["document gay"], "various topics")
