@@ -16,7 +16,7 @@ def LDAtrain(docs):
     corpus = [dictionary.doc2bow(doc) for doc in docs]
 
     # Training the model
-    return models.ldamodel.LdaModel(corpus=corpus, id2word=dictionary, num_topics=25), dictionary
+    return models.ldamulticore.LdaMulticore(corpus=corpus, id2word=dictionary, num_topics=100), dictionary
 
 # data = ["latent Dirichlet allocation (LDA) is a generative statistical model", 
 #             "each document is a mixture of a small number of topics",
@@ -32,6 +32,6 @@ def LDAquery(model, dictionary, test_doc):
     from gensim.matutils import cossim
     doc1 = model.get_document_topics(test_corpus[0], minimum_probability=0)
     doc2 = model.get_document_topics(test_corpus[1], minimum_probability=0)
-    return cossim(doc1, doc2)
+    return (cossim(doc1, doc2) + 1) / 2
 
 # LDAquery(model, ["abc", "fsdgdg"])
