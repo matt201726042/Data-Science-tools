@@ -53,7 +53,7 @@ def reptWeighter(msg):
             out += reptWProfInterp(delta) * (lda.LDAquery(LDAMODEL, LDADICT, [msg["content"], rLOG[i]["content"]])) #levenshtein.levenshtein(msg["content"], rLOG[i]["content"])
     return out
 
-imitate = 426856693389983765
+imitate = 272094586678018048
 
 def main():
     print("Python script started.")
@@ -102,7 +102,7 @@ async def on_message(message):
                         sims.append(lda.LDAquery(LDAMODEL, LDADICT, [realContext[c]["content"], context[c]["content"]]))
                         weights.append(contextWProfInterp(cLen-c))
                         if realContext[c]["author"] == context[c]["author"]:
-                            authorChecks.append(1)
+                            authorChecks.append(0.5)
                         else:
                             authorChecks.append(0)
                     y.append(((np.average(sims, weights=weights) + np.average(authorChecks, weights=weights)) / rW, msg))
