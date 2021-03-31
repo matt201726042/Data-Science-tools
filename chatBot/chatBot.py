@@ -122,7 +122,7 @@ async def on_message(message):
                         sims.append(lda.LDAquery(LDAMODEL, LDADICT, [realContext[c]["content"], context[c]["content"]]))
                         weights.append(contextWProfInterp(cLen-c))
                         if realContext[c]["author"] == context[c]["author"]:
-                            authorChecks.append(1)
+                            authorChecks.append(0.5)
                         else:
                             authorChecks.append(0)
                     y.append(((np.average(sims, weights=weights) + np.average(authorChecks, weights=weights)) / rW, msg))
