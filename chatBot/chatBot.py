@@ -57,7 +57,7 @@ def reptWeighter(msg):
             out += reptWProfInterp(delta) * (lda.LDAquery(LDAMODEL, LDADICT, [msg["content"], rLOG[i]["content"]])) #levenshtein.levenshtein(msg["content"], rLOG[i]["content"])
     return out
 
-imitate = 287257198436810762
+imitate = 309724935495090178
 
 def main():
     print("Python script started.")
@@ -80,7 +80,7 @@ def logNewMessage(message):
     except:
         INFO["counts"][message.author.id] = 0
     #LDAMODEL.update([mes["content"]])
-    print("LOGGED (" + str(len(LOG)) + ")", message.created_at, message.channel.name, ":", message.author.name, ":", message.content)
+    print("LOGGED (" + str(len(LOG)) + ")", message.created_at, message.channel.name, ":", message.author.name, ":", mes["content"])
 
 @my_bot.event
 async def on_message(message):
@@ -126,11 +126,12 @@ async def on_message(message):
                         else:
                             authorChecks.append(0)
                     y.append(((np.average(sims, weights=weights) + np.average(authorChecks, weights=weights)) / rW, msg))
-            a = sorted(y, key=lambda x: x[0])
+            a = sorted(y, key=lambda x: x[0])[::-1]
             out = None
             for i in range(len(a)):
                 if a[i][1]["author"] == imitate and len(a[i][1]["content"]) > 0:
                     out = a[i]
+                    break
             if out != None:
                 print("---------")
                 print("RESPONSE:", out)
