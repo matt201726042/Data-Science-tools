@@ -40,8 +40,7 @@ reptWProfInterp = scipy.interpolate.PchipInterpolator(reptWTime, reptWProf)
 
 #############################################################
 
-def reptWeighter(msg, model, dictionary):
-    rLOG = LOG[::-1]
+def reptWeighter(msg, model, dictionary, rLOG):
     i = -1
     out = 1
     beforeBound = True
@@ -122,7 +121,8 @@ async def on_message(message):
                         context = LOG[message.channel.id][start:i+1]
                         sims = []
                         weights = []
-                        rW = reptWeighter(msg, LDAMODEL[message.channel.id], LDADICT[message.channel.id])
+                        rLOG = LOG[message.channel.id][::-1]
+                        rW = reptWeighter(msg, LDAMODEL[message.channel.id], LDADICT[message.channel.id], rLOG)
                         authorChecks = []
                         for c in range(cLen):
                             sims.append(lda.LDAquery(LDAMODEL[message.channel.id], LDADICT[message.channel.id], [realContext[c]["content"], context[c]["content"]]))
@@ -151,8 +151,9 @@ async def on_message(message):
                 else:
                     await myreplyobj.delete()
             except Exception as e:
-                myreplyobj.delete()
+                await myreplyobj.delete()
                 print("Exception in trying to respond:", e)
+                print('Error on line {}'.format(sys.exc_info()[-1].tb_lineno), type(e).__name__, e)
             ASYNCCOUNT -= 1
 
 @my_bot.event
@@ -170,8 +171,13 @@ async def make_model():
     LDAMODEL = {}
     LDADICT = {}
     for id,messages in LOG.items():
-        LDAMODEL[id], LDADICT[id] = lda.LDAtrain([msg["content"] for msg in messages])
-    print("Models made.")
+        print("Making the model for channel", id)
+        try:
+            LDAMODEL[id], LDADICT[id] = lda.LDAtrain([msg["content"] for msg in messages])
+        except:
+            print("I can't make the model for channel", id)
+        print("Model made.")
+    print("Training complete.")
 
 async def make_logs():
     prevLog = INFO["lastLog"]
