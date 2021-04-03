@@ -19,7 +19,7 @@ ASYNCCOUNT = 0
 try:
     LOG = np.load("chatBotLog.npy", allow_pickle=True).tolist()
 except:
-    LOG = np.array([])
+    LOG = np.array({})
     np.save("chatBotLog.npy", LOG)
     LOG = LOG.tolist()
 try:
@@ -40,7 +40,7 @@ reptWProfInterp = scipy.interpolate.PchipInterpolator(reptWTime, reptWProf)
 
 #############################################################
 
-def reptWeighter(msg):
+def reptWeighter(msg, model, dictionary):
     rLOG = LOG[::-1]
     i = -1
     out = 1
@@ -54,7 +54,7 @@ def reptWeighter(msg):
         elif rLOG[j]["author"] == msg["author"]:
             i += 1
             #print(reptWProfInterp(delta), lda.LDAquery(LDAMODEL, LDADICT, [msg["content"], rLOG[i]["content"]]), levenshtein.levenshtein(msg["content"], rLOG[i]["content"]))
-            out += reptWProfInterp(delta) * (lda.LDAquery(LDAMODEL, LDADICT, [msg["content"], rLOG[i]["content"]])) #levenshtein.levenshtein(msg["content"], rLOG[i]["content"])
+            out += reptWProfInterp(delta) * (lda.LDAquery(model, dictionary, [msg["content"], rLOG[i]["content"]])) #levenshtein.levenshtein(msg["content"], rLOG[i]["content"])
     return out
 
 imitate = 309724935495090178
@@ -69,89 +69,91 @@ def main():
         print(e, 'Try adding the `--bot` flag.')
 
 def logNewMessage(message):
-    at = ",".join([i.url for i in message.attachments])
-    if len(at) > 0:
-        at = " " + at
-    mes = {"author":message.author.id, "time":message.created_at, "content":message.content + at}
-    LOG.append(mes)
-    np.save("chatBotLog.npy", LOG)
-    try:
-        INFO["counts"][message.author.id] += 1
-    except:
-        INFO["counts"][message.author.id] = 0
-    #LDAMODEL.update([mes["content"]])
-    print("LOGGED (" + str(len(LOG)) + ")", message.created_at, message.channel.name, ":", message.author.name, ":", mes["content"])
+    if message.content not in ['', '~']:
+        at = ",".join([i.url for i in message.attachments])
+        if len(at) > 0:
+            at = " " + at
+        messageContent = message.content
+        if message.content[0] == "~":
+            messageContent = message.content[1:]
+        mes = {"author":message.author.id, "time":message.created_at, "content":messageContent + at}
+        try:
+            LOG[message.channel.id].append(mes)
+        except:
+            LOG[message.channel.id] = []
+        np.save("chatBotLog.npy", LOG)
+        try:
+            INFO["counts"][message.author.id] += 1
+        except:
+            INFO["counts"][message.author.id] = 0
+        #LDAMODEL.update([mes["content"]])
+        print("LOGGED (" + str(len(LOG[message.channel.id])) + ")", message.channel.name, ":", message.created_at, ":", message.author.name, ":", mes["content"])
 
 @my_bot.event
 async def on_message(message):
     global ASYNCCOUNT
-    if message.channel.name == "general" or message.channel.name == "dorime":
-        if message.author.id != 826150125206110208:
+    if message.author.id != 826150125206110208:
+        if message.channel.name == "general" or "dorime" in message.channel.name or message.content[0] == "~" or message.author.id == 569277281046888488:
             logNewMessage(message)
-    
-    if message.author.id != 826150125206110208 and message.channel.name == "dorime" and ASYNCCOUNT < 3:
-        ASYNCCOUNT += 1
-        myreplyobj = await message.reply("0%", mention_author=False)
-        try:
-            realContext = LOG[-contextLen:]
-            y = []
-            LOGlen = len(LOG) - 1
-            LOGcap = 1000
-            ratio = LOGcap/INFO["counts"][message.author.id]
-            if ratio > 1:
-                ratio = 1
-            compress = random.choices([True, False], weights=[1-ratio, ratio], k=LOGlen)
-            for i in range(LOGlen):
-                msg = LOG[i+1]
-                if msg["author"] == imitate and not compress[i]:
-                    if i % 100 == 0:
-                        await myreplyobj.edit(content=str(np.round(100 * (i/LOGlen), 2)) + "%")
-                        print(100 * (i/LOGlen), "%")
-                    if i < contextLen:
-                        start = 0
-                    else:
-                        start = (i+1) - contextLen
-                    cLen = (i+1)-start
-                    context = LOG[start:i+1]
-                    msg = LOG[i+1]
-                    sims = []
-                    weights = []
-                    rW = reptWeighter(msg)
-                    authorChecks = []
-                    for c in range(cLen):
-                        sims.append(lda.LDAquery(LDAMODEL, LDADICT, [realContext[c]["content"], context[c]["content"]]))
-                        weights.append(contextWProfInterp(cLen-c))
-                        if realContext[c]["author"] == context[c]["author"]:
-                            authorChecks.append(0.5)
+        
+        if ("dorime" in message.channel.name or message.content[0] == "~") and ASYNCCOUNT < 3:
+            ASYNCCOUNT += 1
+            myreplyobj = await message.reply("0%", mention_author=False)
+            try:
+                realContext = LOG[message.channel.id][-contextLen:]
+                y = []
+                LOGlen = len(LOG[message.channel.id]) - 1
+                LOGcap = 750
+                ratio = LOGcap/INFO["counts"][message.author.id]
+                if ratio > 1:
+                    ratio = 1
+                compress = random.choices([True, False], weights=[1-ratio, ratio], k=LOGlen)
+                for i in range(LOGlen):
+                    msg = LOG[message.channel.id][i+1]
+                    if msg["author"] == imitate and not compress[i]:
+                        if i % 100 == 0:
+                            await myreplyobj.edit(content=str(np.round(100 * (i/LOGlen), 2)) + "%")
+                            print(100 * (i/LOGlen), "%")
+                        if i < contextLen:
+                            start = 0
                         else:
-                            authorChecks.append(0)
-                    y.append(((np.average(sims, weights=weights) + np.average(authorChecks, weights=weights)) / rW, msg))
-            a = sorted(y, key=lambda x: x[0])[::-1]
-            out = None
-            for i in range(len(a)):
-                if a[i][1]["author"] == imitate and len(a[i][1]["content"]) > 0:
-                    out = a[i]
-                    break
-            if out != None:
-                print("---------")
-                print("RESPONSE:", out)
-                print(a[:10])
-                print("---------")
-                try:
-                    await myreplyobj.edit(content=out[1]["content"])
-                    logNewMessage(myreplyobj)
-                except:
-                    pass
-            else:
-                await myreplyobj.delete()
-        except Exception as e:
-            myreplyobj.delete()
-            print("Exception in trying to respond:", e)
-
-        if message.content.startswith('!'):
-            print("I've seen a message!")
-            await message.channel.send("epical")
-        ASYNCCOUNT -= 1
+                            start = (i+1) - contextLen
+                        cLen = (i+1)-start
+                        context = LOG[message.channel.id][start:i+1]
+                        sims = []
+                        weights = []
+                        rW = reptWeighter(msg, LDAMODEL[message.channel.id], LDADICT[message.channel.id])
+                        authorChecks = []
+                        for c in range(cLen):
+                            sims.append(lda.LDAquery(LDAMODEL[message.channel.id], LDADICT[message.channel.id], [realContext[c]["content"], context[c]["content"]]))
+                            weights.append(contextWProfInterp(cLen-c))
+                            if realContext[c]["author"] == context[c]["author"]:
+                                authorChecks.append(0.5)
+                            else:
+                                authorChecks.append(0)
+                        y.append(((np.average(sims, weights=weights) + np.average(authorChecks, weights=weights)) / rW, msg))
+                a = sorted(y, key=lambda x: x[0])[::-1]
+                out = None
+                for i in range(len(a)):
+                    if a[i][1]["author"] == imitate and len(a[i][1]["content"]) > 0:
+                        out = a[i]
+                        break
+                if out != None:
+                    print("---------")
+                    print("RESPONSE:", out)
+                    print(a[:10])
+                    print("---------")
+                    try:
+                        await myreplyobj.edit(content=out[1]["content"])
+                        logNewMessage(myreplyobj)
+                    except:
+                        pass
+                else:
+                    await myreplyobj.delete()
+            except Exception as e:
+                myreplyobj.delete()
+                print("Exception in trying to respond:", e)
+            ASYNCCOUNT -= 1
 
 @my_bot.event
 async def on_ready():
@@ -165,47 +167,59 @@ async def on_ready():
     
 async def make_model():
     global LDAMODEL, LDADICT
-    LDAMODEL, LDADICT = lda.LDAtrain([msg["content"] for msg in LOG])
-    print("Model made.")
+    LDAMODEL = {}
+    LDADICT = {}
+    for id,messages in LOG.items():
+        LDAMODEL[id], LDADICT[id] = lda.LDAtrain([msg["content"] for msg in messages])
+    print("Models made.")
 
 async def make_logs():
     prevLog = INFO["lastLog"]
     print("The last log was", prevLog)
     print("INFO:", INFO)
-    for guild in my_bot.guilds:
-        for channel in guild.channels:
-            if channel.name == "general" and isinstance(channel, discord.TextChannel):
-                if channel.permissions_for(guild.get_member(my_bot.user.id)).read_message_history:
-                    print("Do you want to log this channel? y/n", guild.name, channel.name)
-                    shallIContinue = input("")
-                    if shallIContinue == "y":
-                        sys.stdout.write("Logging {0}:".format(channel.name))
-                        sys.stdout.flush()
-                        i = 0
-                        async for message in channel.history(limit=None,after=prevLog):
-                            try:
-                                i += 1
-                                print(i)
-                                if message.content != '':
-                                    at = ",".join([i.url for i in message.attachments])
-                                    if len(at) > 0:
-                                        at = " " + at
-                                    msg = {"author":message.author.id, "time":message.created_at, "content":message.content + at}
-                                    LOG.append(msg)
-                                    try:
-                                        INFO["counts"][message.author.id] += 1
-                                    except:
-                                        INFO["counts"][message.author.id] = 0
-                                #print((channel.id), (message.author.id, message.created_at, message.content + " " + at))
-                            except Exception as e:
-                                print(e)
-                        if i != 0:
-                            INFO["lastLog"] = datetime.datetime.now()
-                        print("\rLogging {0}: [DONE]            ".format(channel.name))
-    #print(LOG)
-        np.save("chatBotLog.npy", LOG)
-        np.save("chatBotInfo.npy", INFO)
-        print("Logs made, length", len(LOG))
+    print("Do you want to log any channels? y/n")
+    shallIContinue = input("")
+    if shallIContinue == "y":
+        for guild in my_bot.guilds:
+            for channel in guild.channels:
+                if channel.name == "general" and isinstance(channel, discord.TextChannel):
+                    if channel.permissions_for(guild.get_member(my_bot.user.id)).read_message_history:
+                        print("Do you want to log this channel? y/n", guild.name, channel.name)
+                        shallIContinue = input("")
+                        if shallIContinue == "y":
+                            sys.stdout.write("Logging {0}:".format(channel.name))
+                            sys.stdout.flush()
+                            i = 0
+                            LOG[channel.id] = []
+                            async for message in channel.history(limit=None,after=prevLog):
+                                try:
+                                    i += 1
+                                    if i % 100 == 0:
+                                        print("count:", i)
+                                    if message.content not in ['', '~']:
+                                        at = ",".join([i.url for i in message.attachments])
+                                        if len(at) > 0:
+                                            at = " " + at
+                                        messageContent = message.content
+                                        if message.content[0] == "~":
+                                            messageContent = message.content[1:]
+                                        msg = {"author":message.author.id, "time":message.created_at, "content":messageContent + at}
+                                        LOG[channel.id].append(msg)
+                                        try:
+                                            INFO["counts"][message.author.id] += 1
+                                        except:
+                                            INFO["counts"][message.author.id] = 0
+                                    #print((channel.id), (message.author.id, message.created_at, message.content + " " + at))
+                                except Exception as e:
+                                    print(e)
+                            if i != 0:
+                                INFO["lastLog"] = datetime.datetime.now()
+                            print("\rLogging {0}: [DONE]            ".format(channel.name))
+                            #print(LOG)
+                            np.save("chatBotLog.npy", LOG)
+                            np.save("chatBotInfo.npy", INFO)
+                            print("Channel length:", len(LOG[channel.id]))
+    print("Channel count:", len(LOG))
 
 if __name__ == '__main__':
     #my_bot.run(open('token.txt','r').read().split('\n')[0], bot=False)
