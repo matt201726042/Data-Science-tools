@@ -13,8 +13,9 @@ import random
 intents = discord.Intents.all()
 my_bot = Bot(command_prefix="!", intents=intents)
 
-global INFO,LOG
+global INFO,LOG,READY
 ASYNCCOUNT = 0
+READY = False
 
 try:
     LOG = np.load("chatBotLog.npy", allow_pickle=True).tolist()
@@ -68,7 +69,7 @@ def main():
         print(e, 'Try adding the `--bot` flag.')
 
 def logNewMessage(message):
-    if message.content not in ['', '~']:
+    if message.content not in ['', '~'] and READY:
         at = ",".join([i.url for i in message.attachments])
         if len(at) > 0:
             at = " " + at
@@ -91,11 +92,11 @@ def logNewMessage(message):
 @my_bot.event
 async def on_message(message):
     global ASYNCCOUNT
-    if message.author.id != 826150125206110208:
-        if message.channel.name == "general" or "dorime" in message.channel.name or message.content[0] == "~" or message.author.id == 569277281046888488:
+    if message.author.id != 826150125206110208 and len(message.content) > 0:
+        if message.channel.name == "general" or "dorime" in message.channel.name or message.content[0] == "~":
             logNewMessage(message)
         
-        if ("dorime" in message.channel.name or message.content[0] == "~") and ASYNCCOUNT < 3:
+        if ("dorime" in message.channel.name or message.content[0] == "~" or message.author.id == 569277281046888488) and ASYNCCOUNT < 3 and READY:
             ASYNCCOUNT += 1
             myreplyobj = await message.reply("0%", mention_author=False)
             try:
@@ -103,7 +104,7 @@ async def on_message(message):
                 y = []
                 LOGlen = len(LOG[message.channel.id]) - 1
                 LOGcap = 750
-                ratio = LOGcap/INFO["counts"][message.author.id]
+                ratio = LOGcap/INFO["counts"][message.channel.id][message.author.id]
                 if ratio > 1:
                     ratio = 1
                 compress = random.choices([True, False], weights=[1-ratio, ratio], k=LOGlen)
@@ -164,6 +165,7 @@ async def on_ready():
     print("-------------------------------------------------")
     await make_model()
     print("-------------------------------------------------")
+    READY = True
     #await my_bot.logout()
     
 async def make_model():
@@ -211,10 +213,12 @@ async def make_logs():
                                             messageContent = message.content[1:]
                                         msg = {"author":message.author.id, "time":message.created_at, "content":messageContent + at}
                                         LOG[channel.id].append(msg)
-                                        try:
-                                            INFO["counts"][message.author.id] += 1
-                                        except:
-                                            INFO["counts"][message.author.id] = 0
+                                        if message.channel.id not in INFO["counts"].keys():
+                                            INFO["counts"][message.channel.id] = {}
+                                        if message.author.id not in INFO["counts"][message.channel.id].keys():
+                                            INFO["counts"][message.channel.id][message.author.id] = 0
+                                        else:
+                                            INFO["counts"][message.channel.id][message.author.id] += 1
                                     #print((channel.id), (message.author.id, message.created_at, message.content + " " + at))
                                 except Exception as e:
                                     print(e)
