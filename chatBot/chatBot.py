@@ -9,13 +9,15 @@ import scipy.interpolate
 import lda
 import levenshtein
 import random
+import time
 
 intents = discord.Intents.all()
 my_bot = Bot(command_prefix="!", intents=intents)
 
-global INFO,LOG,READY
+global INFO,LOG,READY,DIFFS
 ASYNCCOUNT = 0
 READY = False
+DIFFS = []
 
 try:
     LOG = np.load("chatBotLog.npy", allow_pickle=True).tolist()
@@ -31,12 +33,12 @@ except:
     INFO = INFO.tolist()
 
 contextWProf = [1,0] #Weight profile
-contextLen = 10
+contextLen = 5
 contextWProfInterp = scipy.interpolate.PchipInterpolator(np.linspace(0,contextLen-1, num=len(contextWProf)), contextWProf)
 
 reptWProf = [9,0]
 reptWTime = [0, 60*60*60] #seconds
-reptCap = 10
+reptCap = 4
 reptWProfInterp = scipy.interpolate.PchipInterpolator(reptWTime, reptWProf)
 
 #############################################################
@@ -57,7 +59,7 @@ def reptWeighter(msg, model, dictionary, rLOG):
             out += reptWProfInterp(delta) * (lda.LDAquery(model, dictionary, [msg["content"], rLOG[i]["content"]])) #levenshtein.levenshtein(msg["content"], rLOG[i]["content"])
     return out
 
-imitate = 309724935495090178
+imitate = 319104150690594838
 
 def main():
     print("Python script started.")
@@ -69,32 +71,36 @@ def main():
         print(e, 'Try adding the `--bot` flag.')
 
 def logNewMessage(message):
-    if message.content not in ['', '~'] and READY:
+    if message.content != '' and message.content[0] != "~" and READY:
         at = ",".join([i.url for i in message.attachments])
         if len(at) > 0:
             at = " " + at
         messageContent = message.content
         if message.content[0] == "~":
             messageContent = message.content[1:]
-        mes = {"author":message.author.id, "time":message.created_at, "content":messageContent + at}
-        try:
-            LOG[message.channel.id].append(mes)
-        except:
-            LOG[message.channel.id] = []
-        np.save("chatBotLog.npy", LOG)
-        try:
-            INFO["counts"][message.author.id] += 1
-        except:
-            INFO["counts"][message.author.id] = 0
-        #LDAMODEL.update([mes["content"]])
-        print("LOGGED (" + str(len(LOG[message.channel.id])) + ")", message.channel.name, ":", message.created_at, ":", message.author.name, ":", mes["content"])
+        if len(messageContent) > 0:
+            mes = {"author":message.author.id, "time":message.created_at, "content":messageContent + at}
+            try:
+                LOG[message.channel.id].append(mes)
+            except:
+                LOG[message.channel.id] = []
+            np.save("chatBotLog.npy", LOG)
+            if message.channel.id not in INFO["counts"].keys():
+                INFO["counts"][message.channel.id] = {}
+            if message.author.id not in INFO["counts"][message.channel.id].keys():
+                INFO["counts"][message.channel.id][message.author.id] = 0
+            else:
+                INFO["counts"][message.channel.id][message.author.id] += 1
+            #LDAMODEL.update([mes["content"]])
+
 
 @my_bot.event
 async def on_message(message):
     global ASYNCCOUNT
-    if message.author.id != 826150125206110208 and len(message.content) > 0:
+    if message.author.id != 826150125206110208:
         if message.channel.name == "general" or "dorime" in message.channel.name or message.content[0] == "~":
             logNewMessage(message)
+            print("LOGGED (" + str(len(LOG[message.channel.id])) + ")", message.channel.name, ":", message.created_at, ":", message.author.name, ":", message.content)
         
         if ("dorime" in message.channel.name or message.content[0] == "~" or message.author.id == 569277281046888488) and ASYNCCOUNT < 3 and READY:
             ASYNCCOUNT += 1
@@ -103,11 +109,12 @@ async def on_message(message):
                 realContext = LOG[message.channel.id][-contextLen:]
                 y = []
                 LOGlen = len(LOG[message.channel.id]) - 1
-                LOGcap = 750
-                ratio = LOGcap/INFO["counts"][message.channel.id][message.author.id]
+                LOGcap = 1250
+                ratio = LOGcap/INFO["counts"][message.channel.id][imitate]
                 if ratio > 1:
                     ratio = 1
                 compress = random.choices([True, False], weights=[1-ratio, ratio], k=LOGlen)
+                rLOG = LOG[message.channel.id][::-1]
                 for i in range(LOGlen):
                     msg = LOG[message.channel.id][i+1]
                     if msg["author"] == imitate and not compress[i]:
@@ -122,7 +129,6 @@ async def on_message(message):
                         context = LOG[message.channel.id][start:i+1]
                         sims = []
                         weights = []
-                        rLOG = LOG[message.channel.id][::-1]
                         rW = reptWeighter(msg, LDAMODEL[message.channel.id], LDADICT[message.channel.id], rLOG)
                         authorChecks = []
                         for c in range(cLen):
@@ -132,21 +138,35 @@ async def on_message(message):
                                 authorChecks.append(0.5)
                             else:
                                 authorChecks.append(0)
-                        y.append(((np.average(sims, weights=weights) + np.average(authorChecks, weights=weights)) / rW, msg))
+                        y.append(((np.average(sims, weights=weights) + np.average(authorChecks, weights=weights)) / rW, msg, i))
                 a = sorted(y, key=lambda x: x[0])[::-1]
-                out = None
+                out = []
+                found = False
                 for i in range(len(a)):
-                    if a[i][1]["author"] == imitate and len(a[i][1]["content"]) > 0:
-                        out = a[i]
+                    if a[i][1]["author"] == imitate and len(a[i][1]["content"]) > 0 and a[i][1]["content"][0] != '~':
+                        out.append(a[i])
+                        j = a[i][2]
+                        if j > 1:
+                            for msg in LOG[message.channel.id][-(j-1):]:
+                                if msg["author"] == imitate and len(LOG[message.channel.id][j]["content"]) > 0 and LOG[message.channel.id][j]["content"][0] != '~':
+                                    out.append(msg)
+                                else:
+                                    break
                         break
-                if out != None:
+
+                if len(out) > 0:
                     print("---------")
                     print("RESPONSE:", out)
                     print(a[:10])
                     print("---------")
                     try:
-                        await myreplyobj.edit(content=out[1]["content"])
-                        logNewMessage(myreplyobj)
+                        for i in range(len(out)):
+                            if i == 0:
+                                await myreplyobj.edit(content=out[i][1]["content"])
+                                logNewMessage(myreplyobj)
+                            else:
+                                newmessageobj = await message.channel.send(out[i][1]["content"])
+                                logNewMessage(newmessageobj)
                     except:
                         pass
                 else:
@@ -159,6 +179,7 @@ async def on_message(message):
 
 @my_bot.event
 async def on_ready():
+    global READY
     print("Bot logged in.")
     print("-------------------------------------------------")
     await make_logs()
@@ -204,7 +225,7 @@ async def make_logs():
                                     i += 1
                                     if i % 100 == 0:
                                         print("count:", i)
-                                    if message.content not in ['', '~']:
+                                    if message.content != '' and message.content[0] != "~" :
                                         at = ",".join([i.url for i in message.attachments])
                                         if len(at) > 0:
                                             at = " " + at
