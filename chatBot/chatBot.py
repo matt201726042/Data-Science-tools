@@ -38,7 +38,7 @@ contextWProfInterp = scipy.interpolate.PchipInterpolator(np.linspace(0,contextLe
 
 reptWProf = [9,0]
 reptWTime = [0, 60*60*60] #seconds
-reptCap = 4
+reptCap = 3
 reptWProfInterp = scipy.interpolate.PchipInterpolator(reptWTime, reptWProf)
 
 #############################################################
@@ -59,7 +59,7 @@ def reptWeighter(msg, model, dictionary, rLOG):
             out += reptWProfInterp(delta) * (lda.LDAquery(model, dictionary, [msg["content"], rLOG[i]["content"]])) #levenshtein.levenshtein(msg["content"], rLOG[i]["content"])
     return out
 
-imitate = 319104150690594838
+imitate = 272094586678018048
 
 def main():
     print("Python script started.")
@@ -71,12 +71,12 @@ def main():
         print(e, 'Try adding the `--bot` flag.')
 
 def logNewMessage(message):
-    if message.content != '' and message.content[0] != "~" and READY:
+    if message.content != '' and not (message.content[0] == "~" and not message.content[1] != "~")  and READY:
         at = ",".join([i.url for i in message.attachments])
         if len(at) > 0:
             at = " " + at
         messageContent = message.content
-        if message.content[0] == "~":
+        if (message.content[0] == "~" and not message.content[1] != "~"):
             messageContent = message.content[1:]
         if len(messageContent) > 0:
             mes = {"author":message.author.id, "time":message.created_at, "content":messageContent + at}
@@ -98,84 +98,101 @@ def logNewMessage(message):
 async def on_message(message):
     global ASYNCCOUNT
     if message.author.id != 826150125206110208:
-        if message.channel.name == "general" or "dorime" in message.channel.name or message.content[0] == "~":
+        if message.channel.name == "general" or "dorime" in message.channel.name or (message.content[0] == "~" and message.content[1] != "~"):
             logNewMessage(message)
             print("LOGGED (" + str(len(LOG[message.channel.id])) + ")", message.channel.name, ":", message.created_at, ":", message.author.name, ":", message.content)
         
-        if ("dorime" in message.channel.name or message.content[0] == "~" or message.author.id == 569277281046888488) and ASYNCCOUNT < 3 and READY:
-            ASYNCCOUNT += 1
-            myreplyobj = await message.reply("0%", mention_author=False)
-            try:
-                realContext = LOG[message.channel.id][-contextLen:]
-                y = []
-                LOGlen = len(LOG[message.channel.id]) - 1
-                LOGcap = 1250
-                ratio = LOGcap/INFO["counts"][message.channel.id][imitate]
-                if ratio > 1:
-                    ratio = 1
-                compress = random.choices([True, False], weights=[1-ratio, ratio], k=LOGlen)
-                rLOG = LOG[message.channel.id][::-1]
-                for i in range(LOGlen):
-                    msg = LOG[message.channel.id][i+1]
-                    if msg["author"] == imitate and not compress[i]:
-                        if i % 100 == 0:
-                            await myreplyobj.edit(content=str(np.round(100 * (i/LOGlen), 2)) + "%")
-                            print(100 * (i/LOGlen), "%")
-                        if i < contextLen:
-                            start = 0
-                        else:
-                            start = (i+1) - contextLen
-                        cLen = (i+1)-start
-                        context = LOG[message.channel.id][start:i+1]
-                        sims = []
-                        weights = []
-                        rW = reptWeighter(msg, LDAMODEL[message.channel.id], LDADICT[message.channel.id], rLOG)
-                        authorChecks = []
-                        for c in range(cLen):
-                            sims.append(lda.LDAquery(LDAMODEL[message.channel.id], LDADICT[message.channel.id], [realContext[c]["content"], context[c]["content"]]))
-                            weights.append(contextWProfInterp(cLen-c))
-                            if realContext[c]["author"] == context[c]["author"]:
-                                authorChecks.append(0.5)
+        if ("dorime" in message.channel.name or (message.content[0] == "~" and message.content[1] != "~") or message.author.id == 569277281046888488) and ASYNCCOUNT < 3 and READY:
+            async with message.channel.typing():
+                ASYNCCOUNT += 1
+                try:
+                    imitateObj = message.guild.get_member(imitate)
+                    imitateName = imitateObj.name
+                    imitateDisplay_Name = imitateObj.display_name
+                except:
+                    imitateName = ""
+                myreplyobj = await message.reply(str(imitateName) + ": **" + "0%" + "**", mention_author=False)
+                try:
+                    await message.guild.get_member(my_bot.user.id).edit(nick=str(imitateDisplay_Name))
+                except Exception as e:
+                    print("I don't have nickname priviledges in this guild.", e)
+                try:
+                    realContext = LOG[message.channel.id][-contextLen:]
+                    y = []
+                    LOGlen = len(LOG[message.channel.id]) - 1
+                    LOGcap = 2000
+                    ratio = LOGcap/INFO["counts"][message.channel.id][imitate]
+                    if ratio > 1:
+                        ratio = 1
+                    ratio = np.round(ratio, 5)
+                    rLOG = LOG[message.channel.id][::-1]
+                    rOffset = 0.5 - np.abs(ratio - 0.5)
+                    print(ratio, rOffset)
+                    ratios = np.linspace(ratio-rOffset, ratio+rOffset, num=LOGlen, endpoint=True)
+                    print(ratios)
+                    for i in range(LOGlen):
+                        ratioB = ratios[i]
+                        compress = random.choices([True, False], weights=[1-ratioB, ratioB], k=1)[0]
+                        msg = LOG[message.channel.id][i+1]
+                        if msg["author"] == imitate and not compress:
+                            if i % 100 == 0:
+                                await myreplyobj.edit(content=str(imitateName) + "(" + str(np.round(ratio * 100, 1)) + "%IQ): **" + str(np.round(100 * (i/LOGlen), 2)) + "%**")
+                                print(str(imitateName) + "(" + str(np.round(ratio * 100, 1)) + "%IQ): **" + str(np.round(100 * (i/LOGlen), 2)) + "%**")
+                            if i < contextLen:
+                                start = 0
                             else:
-                                authorChecks.append(0)
-                        y.append(((np.average(sims, weights=weights) + np.average(authorChecks, weights=weights)) / rW, msg, i))
-                a = sorted(y, key=lambda x: x[0])[::-1]
-                out = []
-                found = False
-                for i in range(len(a)):
-                    if a[i][1]["author"] == imitate and len(a[i][1]["content"]) > 0 and a[i][1]["content"][0] != '~':
-                        out.append(a[i])
-                        j = a[i][2]
-                        if j > 1:
-                            for msg in LOG[message.channel.id][-(j-1):]:
-                                if msg["author"] == imitate and len(LOG[message.channel.id][j]["content"]) > 0 and LOG[message.channel.id][j]["content"][0] != '~':
-                                    out.append(msg)
+                                start = (i+1) - contextLen
+                            cLen = (i+1)-start
+                            context = LOG[message.channel.id][start:i+1]
+                            sims = []
+                            weights = []
+                            rW = reptWeighter(msg, LDAMODEL[message.channel.id], LDADICT[message.channel.id], rLOG)
+                            authorChecks = []
+                            for c in range(cLen):
+                                sims.append(lda.LDAquery(LDAMODEL[message.channel.id], LDADICT[message.channel.id], [realContext[-c]["content"], context[-c]["content"]]))
+                                weights.append(contextWProfInterp(c))
+                                if realContext[-c]["author"] == context[-c]["author"]:
+                                    authorChecks.append(0.5)
                                 else:
-                                    break
-                        break
+                                    authorChecks.append(0)
+                            y.append(((np.average(sims, weights=weights) + np.average(authorChecks, weights=weights)) / rW, msg, i))
+                    a = sorted(y, key=lambda x: x[0])[::-1]
+                    out = []
+                    found = False
+                    for i in range(len(a)):
+                        if a[i][1]["author"] == imitate and len(a[i][1]["content"]) > 0 and not (a[i][1]["content"][0] == '~' and a[i][1]["content"][1] != '~'):
+                            out.append(a[i])
+                            j = a[i][2]
+                            if j > 1:
+                                for msg in LOG[message.channel.id][-(j-1):]:
+                                    if msg["author"] == imitate and len(LOG[message.channel.id][j]["content"]) > 0 and LOG[message.channel.id][j]["content"][0] != '~':
+                                        out.append(msg)
+                                    else:
+                                        break
+                            break
 
-                if len(out) > 0:
-                    print("---------")
-                    print("RESPONSE:", out)
-                    print(a[:10])
-                    print("---------")
-                    try:
-                        for i in range(len(out)):
-                            if i == 0:
-                                await myreplyobj.edit(content=out[i][1]["content"])
-                                logNewMessage(myreplyobj)
-                            else:
-                                newmessageobj = await message.channel.send(out[i][1]["content"])
-                                logNewMessage(newmessageobj)
-                    except:
-                        pass
-                else:
+                    if len(out) > 0:
+                        print("---------")
+                        print("RESPONSE:", out)
+                        print(a[:10])
+                        print("---------")
+                        try:
+                            for i in range(len(out)):
+                                if i == 0:
+                                    await myreplyobj.edit(content=out[i][1]["content"])
+                                    logNewMessage(myreplyobj)
+                                else:
+                                    newmessageobj = await message.channel.send(out[i][1]["content"])
+                                    logNewMessage(newmessageobj)
+                        except:
+                            pass
+                    else:
+                        await myreplyobj.delete()
+                except Exception as e:
                     await myreplyobj.delete()
-            except Exception as e:
-                await myreplyobj.delete()
-                print("Exception in trying to respond:", e)
-                print('Error on line {}'.format(sys.exc_info()[-1].tb_lineno), type(e).__name__, e)
-            ASYNCCOUNT -= 1
+                    print("Exception in trying to respond:", e)
+                    print('Error on line {}'.format(sys.exc_info()[-1].tb_lineno), type(e).__name__, e)
+                ASYNCCOUNT -= 1
 
 @my_bot.event
 async def on_ready():
@@ -211,7 +228,7 @@ async def make_logs():
     if shallIContinue == "y":
         for guild in my_bot.guilds:
             for channel in guild.channels:
-                if channel.name == "general" and isinstance(channel, discord.TextChannel):
+                if (channel.name == "general" or "dorime" in channel.name) and isinstance(channel, discord.TextChannel):
                     if channel.permissions_for(guild.get_member(my_bot.user.id)).read_message_history:
                         print("Do you want to log this channel? y/n", guild.name, channel.name)
                         shallIContinue = input("")
@@ -225,12 +242,12 @@ async def make_logs():
                                     i += 1
                                     if i % 100 == 0:
                                         print("count:", i)
-                                    if message.content != '' and message.content[0] != "~" :
+                                    if message.content != '' and not (message.content[0] == "~" and message.content[1] != "~") :
                                         at = ",".join([i.url for i in message.attachments])
                                         if len(at) > 0:
                                             at = " " + at
                                         messageContent = message.content
-                                        if message.content[0] == "~":
+                                        if message.content[0] == "~" and message.content[1] != "~":
                                             messageContent = message.content[1:]
                                         msg = {"author":message.author.id, "time":message.created_at, "content":messageContent + at}
                                         LOG[channel.id].append(msg)

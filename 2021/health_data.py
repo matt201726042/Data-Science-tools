@@ -95,18 +95,18 @@ for line in lines:
 
 datapointsT = np.transpose(datapoints)
 
-fig,ax = plt.subplots(2)
-ax1,ax2 = ax
+fig,ax = plt.subplots(1) #2
+ax1 = ax #,ax2
 
-weight1stDifferential = [[], []]
-timeDiffs = np.diff(weight1stDifferential[0], n=1)
-for pair in range(len(datapointsT[0]) - 1):
-    weight1stDifferential[0].append((datapointsT[0][pair + 1] + datapointsT[0][pair]) / 2)
-    weight1stDifferential[1].append((datapointsT[1][pair + 1] - datapointsT[1][pair]) * (datapointsT[0][pair + 1] - datapointsT[0][pair]))
+#weight1stDifferential = [[], []]
+#timeDiffs = np.diff(weight1stDifferential[0], n=1)
+#for pair in range(len(datapointsT[0]) - 1):
+    #weight1stDifferential[0].append((datapointsT[0][pair + 1] + datapointsT[0][pair]) / 2)
+    #weight1stDifferential[1].append((datapointsT[1][pair + 1] - datapointsT[1][pair]) * (datapointsT[0][pair + 1] - datapointsT[0][pair]))
 
-term = 604800 * 2 #in seconds, for moving average
-x,y = weight1stDifferential[0], kernelRollingAverage(weight1stDifferential, kernel=[[-term,0,term], [0,1,0]], certainties = timeDiffs)
-ax2.plot(x, y, linewidth=0.75, alpha=1, label="weight 1st differential")
+#term = 604800 * 2 #in seconds, for moving average
+#x,y = weight1stDifferential[0], kernelRollingAverage(weight1stDifferential, kernel=[[-term,0,term], [0,1,0]], certainties = timeDiffs)
+#ax2.plot(x, y, linewidth=0.75, alpha=1, label="weight 1st differential")
 
 allOnTheSameGraph = True
 term = 604800 * 2 #in seconds, for moving average
@@ -139,12 +139,13 @@ for i in range(rang):
         y = kernelRollingAverage([x,y], [[-term,0,term], [0,1,0]])
 
         ax1.plot(x, y, linewidth=0.75, alpha=1, label=fieldNames[fieldNum])
-        plt.legend()
         if not allOnTheSameGraph:
             drawMonths()
+            ax1.legend()
             plt.show()
-        else:
+        elif fieldNum == len(fieldNames) - 1:
             plt.draw()
-            plt.legend()
-            plt.pause(0.000000001)
+            ax1.legend()
+            plt.show()
+            #plt.pause(0.000000001)
 plt.pause(100)
