@@ -122,7 +122,7 @@ def update(ev):
     #DATA = [np.linspace(0, 1, 50), np.array([np.sin(x) + (random.uniform(0,1) / 10) for x in np.linspace(t,t+8,50)])]
     #DATA = [[1,2,3], [1,2,3]]
     #scatter.set_data(predictor(DATA, 25), edge_color="red", face_color=(1, 1, 1, .5), size=5)
-    DATA = np.array([np.linspace(0, 1, 10), np.array([np.sin(x) + ((x-t)/15000000) + (random.uniform(0,0) / 10) for x in np.linspace(t,t+8,10)])])
+    DATA = np.array([np.linspace(0, 1, 10), np.array([np.sin(x) + ((x-t)/1500000) + (random.uniform(0,0) / 10) for x in np.linspace(t,t+8,10)])])
     DATAdim = len(DATA)
 
 
