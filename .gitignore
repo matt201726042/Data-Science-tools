@@ -1,17 +1,1 @@
-<<<<<<< HEAD
-\environment
-\chatBot\token.txt
 .venv/
-=======
-.venv/
-chatBot\token.txt
->>>>>>> parent of f0c2752b (bam)
-chatBot/token.txt
-chatBot/token.txt
-chatBot/token.txt
-chatBot/token.txt
-chatBot/token.txt
-chatBot/token.txt
-.venv/Lib/
-*.pxd
-*.dll
