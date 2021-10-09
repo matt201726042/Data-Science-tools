@@ -59,7 +59,7 @@ def reptWeighter(msg, model, dictionary, rLOG):
             out += reptWProfInterp(delta) * (lda.LDAquery(model, dictionary, [msg["content"], rLOG[i]["content"]])) #levenshtein.levenshtein(msg["content"], rLOG[i]["content"])
     return out
 
-imitate = 272094586678018048
+imitate = 316988873710501888
 
 def main():
     print("Python script started.")

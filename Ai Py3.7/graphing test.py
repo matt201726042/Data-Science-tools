@@ -84,10 +84,10 @@ def doubleRefl(points, AA, AB, BA, BB):
 def body(z):
     global scatter
 
-    DATA = np.array([[x for x in range(20)], [y for y in range(20)], [z for z in range(20)]])
+    DATA = np.array([[x for x in range(20)], [0 for y in range(20)]])
 
     perf = [[], []]
-    resultParity = np.array([])
+    resultParity = np.array([]) #Similarities
     z = int(z)
     for i in range(z, z+1, 1): #Nearing ##math.ceil(count ** (1 / np.size(ndBounds[dim], axis=0)))## may cause weird distribution
 
@@ -104,23 +104,24 @@ def body(z):
             dimRange = np.amax(DATA[dim]) - np.amin(DATA[dim])
             lowerBound = np.amin(DATA[dim]) - (1 * dimRange)
             upperBound = np.amax(DATA[dim]) + (1 * dimRange)
-            ndBounds[dim] = np.array([[1,1], [lowerBound, upperBound], [-dimRange, dimRange]]) #scale factor, scale center, phase             #doubleRefl center???, ["rotate", 0, 360 - ((360 - 0) / (count + 1))]
+            #ndBounds[dim] = np.array([[1,1], [lowerBound, upperBound], [-dimRange, dimRange]]) #scale factor, scale center, phase             #doubleRefl center???, ["rotate", 0, 360 - ((360 - 0) / (count + 1))]
+            ndBounds[dim] = np.array([[-dimRange, dimRange]])
             dimRangeMult += dimRange
 
         result = ndEvenDist(ndBounds, count, resultParity)
 
-        params = 3
+        params = 2
         resultDimensions = np.size(result, axis=0)
         dimensions = np.size(DATA, axis=0)
         toReturn = []
         for task in range(np.size(result[0], axis=0)):
             #startTimeTwo = time.perf_counter()
-            tempDATA = np.array([[x for x in range(20)], [y for y in range(20)], [z for z in range(20)]])
+            tempDATA = DATA
             overlapIndexes = []
             for dim in range(resultDimensions // params): # amount of parameters (dimensions) passed into ndEvenDist
                 offset = params * dim
                 temp = scale(DATA[dim], result[offset][task], result[offset + 1][task])
-                temp = phase(temp, result[offset + 2][task])
+                #temp = phase(temp, result[offset + 2][task])
                 tempDATA[dim] = temp
                 overlapIndexes.append(np.where((np.amin(DATA[dim]) <= temp) & (temp <= np.amax(DATA[dim])))[0])
             validOverlaps = commonElements(overlapIndexes)
@@ -151,9 +152,12 @@ def update(ev):
     global scatter
     global t
     t += 1
-    result = np.array(body(t))
-    result = result.reshape(-1, result.shape[-1])
-    scatter.set_data(result, edge_color=None, face_color=(0, 0, 1, 1), size=10)
+    try:
+        result = np.array(body(t))
+        result = result.reshape(-1, result.shape[-1])
+        scatter.set_data(result, edge_color=None, face_color=(0, 0, 1, 1), size=10)
+    except:
+        pass
 
 timer = app.Timer()
 timer.connect(update)
