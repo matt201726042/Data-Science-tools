@@ -14,6 +14,8 @@ import math
 import bisect
 import time
 
+import stocks as s
+
 canvas = vispy.scene.SceneCanvas(keys='interactive', title='Forecaster', show=True)
 canvasTwo = vispy.scene.SceneCanvas(keys='interactive', title='Backtester', show=True)
 view = canvas.central_widget.add_view()
@@ -46,7 +48,7 @@ def main(DATA, signalSamples, phaseSamples, binCount):
         if dim > 0:
             pchips.append(PchipInterpolator(DATA[0], DATA[dim]))
         else:
-            binBounds = np.linspace(-dimRange + DATA[0][0], dimRange + DATA[0][-1], binCount+1, endpoint=False)
+            binBounds = np.linspace(DATA[0][0], dimRange + DATA[0][-1], binCount+1, endpoint=True)
             bins = [[] for i in range(len(binBounds)-1)]
     sims = ndEvenDist(ndBounds, phaseSamples)
     
@@ -123,25 +125,26 @@ axis = visuals.XYZAxis(parent=view.scene)
 
 t = -0.1
 DATA = [[0], [0]]
+stockData = s.getStockData()[:3000]
 def update(ev):
     global scatter
     global scatterBase
     global t
     if t < 0:
-        view.camera.center = [0,0,7]
+        view.camera.center = [0,0,500]
         view.camera.rotation1 = Quaternion.create_from_euler_angles(*[0,0,0], degrees=True)
         view.camera.scale_factor = 1
         #r = R.from_quat([view.camera.rotation.w, view.camera.rotation.x, view.camera.rotation.y, view.camera.rotation.z])
         #print(r.as_euler('zyx', degrees=True))
     t += 0.5
-
+    DATA = [np.linspace(0,100, np.size(stockData)), stockData]
+    #DATA[0].append(t+0.1)
+    #DATA[1].append(np.sin(t))
     A = len(DATA[0])
-    DATA[0].append(t+0.1)
-    DATA[1].append(np.sin(t))
     #DATA = np.array([np.linspace(0, 1, A), np.array([np.sin(x) + np.sin(x/2) + ((x-t)/1500000) + (random.uniform(0,0) / 10) for x in np.linspace(t,t+8,A)])])
     DATAdim = len(DATA)
     binCount = A * 3
-    out = main(DATA, 10, 2500, binCount) #signalSamples, phaseSamples, binCount
+    out = main(DATA, 10, 20000, binCount) #signalSamples, phaseSamples, binCount
 
     weights = np.array([np.full((len(out["data"][0][0])), w) for w in out["weights"]]).flatten()
     colours = []
