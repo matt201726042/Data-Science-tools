@@ -16,25 +16,17 @@ import time
 
 import stocks as s
 
-canvas = vispy.scene.SceneCanvas(keys='interactive', title='Forecaster', show=True)
-canvasTwo = vispy.scene.SceneCanvas(keys='interactive', title='Backtester', show=True)
-view = canvas.central_widget.add_view()
-view.camera = 'fly'
-
-#############################################
-
-#This model has no temporal communication, each prediction is independent of every other prediction.
-
-#############################################
+import multiprocessing
+from multiprocessing import Process
 
 def ndEvenDist(ndBounds, count):
-    z = np.array([[np.linspace(ndBounds[dim][param][0].astype(np.float64), ndBounds[dim][param][1].astype(np.float64), num=math.ceil(count ** (1 / np.size(ndBounds, axis=0))), endpoint=True, retstep=False, dtype=None, axis=0) for param in range(np.size(ndBounds[dim], axis=0))] for dim in range(np.size(ndBounds, axis=0))])
-    z = z.reshape(-1, z.shape[-1])
-    meshgrid = np.meshgrid(*z)
-    meshgrid = [meshgrid[i].flatten() for i in range(np.size(meshgrid, axis=0))]
-    return [meshgrid[a][list(set(np.floor(np.linspace(0, len(meshgrid[a]), num=count + 2, endpoint=True, retstep=False, dtype=None, axis=0)[1:-1]).astype(int)))] for a in range(len(meshgrid))]
+        z = np.array([[np.linspace(ndBounds[dim][param][0].astype(np.float64), ndBounds[dim][param][1].astype(np.float64), num=math.ceil(count ** (1 / np.size(ndBounds, axis=0))), endpoint=True, retstep=False, dtype=None, axis=0) for param in range(np.size(ndBounds[dim], axis=0))] for dim in range(np.size(ndBounds, axis=0))])
+        z = z.reshape(-1, z.shape[-1])
+        meshgrid = np.meshgrid(*z)
+        meshgrid = [meshgrid[i].flatten() for i in range(np.size(meshgrid, axis=0))]
+        return [meshgrid[a][list(set(np.floor(np.linspace(0, len(meshgrid[a]), num=count + 2, endpoint=True, retstep=False, dtype=None, axis=0)[1:-1]).astype(int)))] for a in range(len(meshgrid))]
 
-def main(DATA, signalSamples, phaseSamples, binCount):
+def forecaster(DATA, signalSamples, phaseSamples, binCount):
     DATA = np.array(DATA).astype(np.float64)
     DATAdims = len(DATA)
 
@@ -48,7 +40,7 @@ def main(DATA, signalSamples, phaseSamples, binCount):
         if dim > 0:
             pchips.append(PchipInterpolator(DATA[0], DATA[dim]))
         else:
-            binBounds = np.linspace(DATA[0][0], dimRange + DATA[0][-1], binCount+1, endpoint=True)
+            binBounds = np.linspace(DATA[0][0] - dimRange, dimRange + DATA[0][-1], binCount+1, endpoint=True)
             bins = [[] for i in range(len(binBounds)-1)]
     sims = ndEvenDist(ndBounds, phaseSamples)
     
@@ -75,9 +67,9 @@ def main(DATA, signalSamples, phaseSamples, binCount):
                 dDist = (sum(dimDists) ** 0.5)
                 tempDists.append(dDist)
         tempDistsMean = np.mean(tempDists)
+        lenPerc = len(tempDists)/(len(DATA[0]))
         for i in range(len(tempDATA[0])):
             b = bisect.bisect(binBounds, tempDATA[0][i])
-            lenPerc = len(tempDists)/(len(DATA[0]) - 1)
             if len(tempDists) != 0 and not(b == 0 or b == binCount+1):
                 bins[b-1].append([[tempDATA[a][i] for a in range(1,DATAdims)], (((1-tempDistsMean) + lenPerc)/2) + 1])
         result["weights"].append(tempDistsMean)
@@ -109,69 +101,115 @@ def main(DATA, signalSamples, phaseSamples, binCount):
     result["weights"] = ((1-result["weights"]) + result["lens"]) / 2 #1 - (((1 - ((1 - result["weights"]) ** 1)) + (1-result["lens"])) / 2)
     return result
 
-Plot3D = scene.visuals.create_visual_node(vispy.visuals.line_plot.LinePlotVisual)
+def multiprocessing_func(id, t):
+    while True:
+        t += 0.1
+        #DATA = [np.linspace(0,100, np.size(stockData)), stockData]
+        #DATA[0].append(t+0.1)
+        #DATA[1].append(np.sin(t))
+        A = 10
+        DATA = np.array([np.linspace(0, 1, A), np.array([np.sin(x) + np.cos(x/4) + ((x-t)/1500000) + (random.uniform(0,0) / 10) for x in np.linspace(t,t+12,A)])])
+        DATAdim = len(DATA)
+        binCount = A * 3
+        out = forecaster(DATA, 10, 500, binCount) #signalSamples, phaseSamples, binCount
 
-scatter = visuals.Markers()
-view.add(scatter)
-scatterBase = Plot3D()
-view.add(scatterBase)
-scatterBinned = Plot3D()
-view.add(scatterBinned)
+        weights = np.array([np.full((len(out["data"][0][0])), w) for w in out["weights"]]).flatten()
+        colours = []
+        for w in weights:
+            colours.append([1-w,w/2,w,1-w])
+        outData = np.array([np.transpose(out["data"][i]) for i in range(len(out["data"]))])
+        outDataShape = np.shape(outData)
+        outData = outData.reshape(outDataShape[0] * outDataShape[1], outDataShape[2])
+        binData = []
+        binData.append(out["binLocs"])
+        for a in range(DATAdim-1):
+            binData.append(out["binned"][a])
+        binData = np.transpose(np.array(binData))
+        #print("A", len(binData[0]), len(binData[1]), np.transpose(np.array(binData)), "A")
+        
+        #out = Global.out
+        out = {"DATA":DATA, "binData":binData, "colours":colours, "outData":outData, "t":t}
+        Global.out = out
+    #Global.alive = False
 
-#view.camera = scene.TurntableCamera(up='z')
-
-# just makes the axes
-axis = visuals.XYZAxis(parent=view.scene)
-
-t = -0.1
-DATA = [[0], [0]]
-stockData = s.getStockData()[:3000]
-def update(ev):
-    global scatter
-    global scatterBase
-    global t
-    if t < 0:
-        view.camera.center = [0,0,500]
-        view.camera.rotation1 = Quaternion.create_from_euler_angles(*[0,0,0], degrees=True)
-        view.camera.scale_factor = 1
-        #r = R.from_quat([view.camera.rotation.w, view.camera.rotation.x, view.camera.rotation.y, view.camera.rotation.z])
-        #print(r.as_euler('zyx', degrees=True))
-    t += 0.5
-    DATA = [np.linspace(0,100, np.size(stockData)), stockData]
-    #DATA[0].append(t+0.1)
-    #DATA[1].append(np.sin(t))
-    A = len(DATA[0])
-    #DATA = np.array([np.linspace(0, 1, A), np.array([np.sin(x) + np.sin(x/2) + ((x-t)/1500000) + (random.uniform(0,0) / 10) for x in np.linspace(t,t+8,A)])])
-    DATAdim = len(DATA)
-    binCount = A * 3
-    out = main(DATA, 10, 20000, binCount) #signalSamples, phaseSamples, binCount
-
-    weights = np.array([np.full((len(out["data"][0][0])), w) for w in out["weights"]]).flatten()
-    colours = []
-    for w in weights:
-        colours.append([1-w,w/2,w,1-w])
-    outData = np.array([np.transpose(out["data"][i]) for i in range(len(out["data"]))])
-    outDataShape = np.shape(outData)
-    outData = outData.reshape(outDataShape[0] * outDataShape[1], outDataShape[2])
-    binData = []
-    binData.append(out["binLocs"])
-    for a in range(DATAdim-1):
-        binData.append(out["binned"][a])
-    binData = np.transpose(np.array(binData))
-    #print("A", len(binData[0]), len(binData[1]), np.transpose(np.array(binData)), "A")
-    try:
-        #scatter.set_data(outData[:100000], edge_color=(0,0,1,0), face_color=colours[:100000], size=3)
-
-        #scatterBase.set_data(pos=self.out[0], connect=self.out[1], width=1000, color=(0.5, 0.5, 1, 1))
-        scatterBase.set_data(np.transpose(DATA + np.zeros(np.size(DATA, 1))), connect=np.array([[i, i+1] for i in range(len(DATA[0]) - 1)]), color=(1, 1, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=4, face_color=(0.5, 0.5, 1, 0))
-        scatterBinned.set_data(binData, connect=np.array([[i, i+1] for i in range(binCount - 1)]), color=(0.5, 0.5, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=2, face_color=(0.5, 0.5, 1, 0))
-    except:
-        pass
-
-timer = app.Timer()
-timer.connect(update)
-timer.start(0)
 if __name__ == '__main__':
-    canvas.show()
+    manager = multiprocessing.Manager()
+    global Global
+    global processes
+    Global = manager.Namespace()
+    processes = []
+    #############################################
+    vispy.use("glfw")
+
+    canvas = vispy.scene.SceneCanvas(keys='interactive', title='Forecaster', show=True)
+    canvasTwo = vispy.scene.SceneCanvas(keys='interactive', title='Backtester', show=True)
+    view = canvas.central_widget.add_view()
+    view.camera = 'fly'
+    #############################################
+    #This model has no temporal communication, each prediction is independent of every other prediction.
+    #1) USE QTHREAD
+    #############################################
+
+    Plot3D = scene.visuals.create_visual_node(vispy.visuals.line_plot.LinePlotVisual)
+
+    scatter = visuals.Markers()
+    view.add(scatter)
+    scatterBase = Plot3D()
+    view.add(scatterBase)
+    scatterBinned = Plot3D()
+    view.add(scatterBinned)
+
+    #view.camera = scene.TurntableCamera(up='z')
+
+    # just makes the axes
+    axis = visuals.XYZAxis(parent=view.scene)
+
+    t = -0.1
+    #DATA = [[0], [0]]
+    #stockData = s.getStockData()[:3000]
+    Global.out = {"DATA":[], "binData":[], "colours":[], "outData":[], "t":t}
+
+    def main():
+        print("main: started")
+        coreCount = 1#int(multiprocessing.cpu_count() * 0.5)
+        processes = []
+        for id in range(coreCount):
+            p = multiprocessing.Process(target=multiprocessing_func, args=(id, t))
+            p.daemon = True
+            processes.append(p)
+        for core in range(coreCount):
+            processes[core].start()
+        ###processes[-1].join()
+
+    def update(ev):
+        global scatter
+        global scatterBase
+        global t
+        if t < 0:
+            view.camera.center = [0,0,5]
+            view.camera.rotation1 = Quaternion.create_from_euler_angles(*[0,0,0], degrees=True)
+            view.camera.scale_factor = 1
+            #r = R.from_quat([view.camera.rotation.w, view.camera.rotation.x, view.camera.rotation.y, view.camera.rotation.z])
+            #print(r.as_euler('zyx', degrees=True))
+        try:
+            startTime = time.perf_counter()
+            DATA = Global.out["DATA"]
+            binData = Global.out["binData"]
+            colours = Global.out["colours"]
+            outData = Global.out["outData"]
+            t = Global.out["t"]
+            print(1 / (time.perf_counter() - startTime))
+            scatter.set_data(outData[:100000], edge_color=(0,0,1,0), face_color=colours[:100000], size=3)
+            #scatterBase.set_data(pos=self.out[0], connect=self.out[1], width=1000, color=(0.5, 0.5, 1, 1))
+            scatterBase.set_data(np.transpose(DATA + np.zeros(np.size(DATA, 1))), connect=np.array([[i, i+1] for i in range(len(DATA[0]) - 1)]), color=(1, 1, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=4, face_color=(0.5, 0.5, 1, 0))
+            scatterBinned.set_data(binData, connect=np.array([[i, i+1] for i in range(len(binData) - 1)]), color=(0.5, 0.5, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=2, face_color=(0.5, 0.5, 1, 0))
+        except:
+            pass
+
+    timer = app.Timer()
+    timer.connect(update)
+    timer.start(1/60)
     if sys.flags.interactive == 0:
+        main()
+        canvas.show()
         app.run()
