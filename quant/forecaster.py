@@ -100,16 +100,16 @@ def multiprocessing_func(Global, id, t):
         result["weights"] = ((1-result["weights"]) + result["lens"]) / 2 #1 - (((1 - ((1 - result["weights"]) ** 1)) + (1-result["lens"])) / 2)
         return result
     while True:
-        startTime = time.perf_counter()
+        #startTime = time.perf_counter()
         t += 0.1
         #DATA = [np.linspace(0,100, np.size(stockData)), stockData]
         #DATA[0].append(t+0.1)
         #DATA[1].append(np.sin(t))
-        A = 10
-        DATA = np.array([np.linspace(0, 1, A), np.array([np.sin(x) + np.cos(x/4) + ((x-t)/1500000) + (random.uniform(0,0) / 10) for x in np.linspace(t,t+12,A)])])
+        A = 15
+        DATA = np.array([np.linspace(0+t, 1+t, A), np.array([np.sin(x) + np.cos(x/4) + ((x-t)/1500000) + (random.uniform(0,0) / 10) for x in np.linspace(t,t+12,A)])])
         DATAdim = len(DATA)
         binCount = A * 3
-        out = forecaster(DATA, 10, 500, binCount) #signalSamples, phaseSamples, binCount
+        out = forecaster(DATA, 10, 400, binCount) #signalSamples, phaseSamples, binCount
 
         weights = np.array([np.full((len(out["data"][0][0])), w) for w in out["weights"]]).flatten()
         colours = []
@@ -118,16 +118,17 @@ def multiprocessing_func(Global, id, t):
         outData = np.array([np.transpose(out["data"][i]) for i in range(len(out["data"]))])
         outDataShape = np.shape(outData)
         outData = outData.reshape(outDataShape[0] * outDataShape[1], outDataShape[2])
+        outData = np.transpose(outData)
         binData = []
         binData.append(out["binLocs"])
         for a in range(DATAdim-1):
             binData.append(out["binned"][a])
-        binData = np.transpose(np.array(binData))
+        binData = np.array(binData)
         #print("A", len(binData[0]), len(binData[1]), np.transpose(np.array(binData)), "A")
         
         #out = Global.out
         out = {"DATA":DATA, "binData":binData, "colours":colours, "outData":outData, "t":t}
-        print("B", 1 / (time.perf_counter() - startTime))
+        #print("B", 1 / (time.perf_counter() - startTime))
         Global.out = out
     #Global.alive = False
 
@@ -200,34 +201,41 @@ if __name__ == '__main__':
             processes[core].start()
         ###processes[-1].join()
 
+    i = 0
     def update(ev):
         global scatter
         global scatterBase
         global t
+        global i
+        i += 1
         if t < 0:
             view.camera.center = [0,0,5]
             view.camera.rotation1 = Quaternion.create_from_euler_angles(*[0,0,0], degrees=True)
             view.camera.scale_factor = 1
             #r = R.from_quat([view.camera.rotation.w, view.camera.rotation.x, view.camera.rotation.y, view.camera.rotation.z])
             #print(r.as_euler('zyx', degrees=True))
-        try:
-            startTime = time.perf_counter()
+        if i == 0 or i % 100 == 0:
             DATA = Global.out["DATA"]
             binData = Global.out["binData"]
             colours = Global.out["colours"]
             outData = Global.out["outData"]
             t = Global.out["t"]
-            print("A", 1 / (time.perf_counter() - startTime))
+
+            #startTime = time.perf_counter()
+            DATA[0] -= np.mean(DATA[0])
+            binData[0] -= np.mean(binData[0])
+            binData = np.transpose(binData)
+            outData[0] -= np.mean(outData[0])
+            outData = np.transpose(outData)
+            #print("A", 1 / (time.perf_counter() - startTime))
             scatter.set_data(outData[:100000], edge_color=(0,0,1,0), face_color=colours[:100000], size=3)
             #scatterBase.set_data(pos=self.out[0], connect=self.out[1], width=1000, color=(0.5, 0.5, 1, 1))
-            scatterBase.set_data(np.transpose(DATA + np.zeros(np.size(DATA, 1))), connect=np.array([[i, i+1] for i in range(len(DATA[0]) - 1)]), color=(1, 1, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=4, face_color=(0.5, 0.5, 1, 0))
+            scatterBase.set_data(np.transpose(DATA), connect=np.array([[i, i+1] for i in range(len(DATA[0]) - 1)]), color=(1, 1, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=4, face_color=(0.5, 0.5, 1, 0)) #np.zeros(np.size(DATA, 1))
             scatterBinned.set_data(binData, connect=np.array([[i, i+1] for i in range(len(binData) - 1)]), color=(0.5, 0.5, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=2, face_color=(0.5, 0.5, 1, 0))
-        except:
-            pass
 
     timer = app.Timer()
     timer.connect(update)
-    timer.start(1/60)
+    timer.start(0)
     if sys.flags.interactive == 0:
         main()
         canvas.show()
