@@ -48,13 +48,14 @@ def forecaster(data, phaseSamples):
         #print(tempDistsMean)
         #print(np.round(s/phaseSamples, 2))
 	
-    print(dataDiff[0][-1], dataDiff[0][0])
     idx = np.where((out[0]<dataDiff[0][-1])*(out[0]>dataDiff[0][0]))[0]	
-    print(idx)
-    binCount = 7
+    binCount = 15
+    binCount -= 2
     #np.aspace(0,idx[0], idx[0]//(binCount/2)).astype(int)
     #np.aspace(idx[-1], len(out[0])-1, ((len(out[0])-1) - idx[-1])//(binCount/2))
-    binBounds = [np.arange(0,idx[0], idx[0]//(binCount/2)).astype(int), np.arange(idx[-1], len(out[0])-1, ((len(out[0])-1) - idx[-1])//(binCount/2)).astype(int)]
+    binBounds = [list(np.arange(0,idx[0], idx[0]//(binCount/2)).astype(int)), list(np.arange(idx[-1], len(out[0])-1, ((len(out[0])-1) - idx[-1])//(binCount/2)).astype(int))]
+    binBounds[0].append(idx[0])
+    binBounds[1].append(len(out[0])-1)
     binOut = [[[] for dim in range(dataDims)], [[] for dim in range(dataDims)]]
     undiff = [[[] for dim in range(dataDims)], [[] for dim in range(dataDims)]]
     for side in range(2):
@@ -84,7 +85,6 @@ def forecaster(data, phaseSamples):
             else:
                 undiff[side][0] = binBounds[side]
         #undiff[side] = np.transpose(undiff[side])
-    print(undiff)
 
     # #kernel moving average
     # binWidth = (dataDiff[0][-1] - dataDiff[0][0]) / 100
@@ -103,6 +103,7 @@ def forecaster(data, phaseSamples):
     #             weights[dim] += out[-1][idx[j]]
     #     outSmooth.append(np.array(sums) / np.array(weights))
 
+    print(undiff)
     print("fps", 1 / (time.perf_counter() - startTime))
     return undiff
 
