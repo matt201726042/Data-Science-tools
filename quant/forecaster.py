@@ -105,11 +105,11 @@ def multiprocessing_func(Global, id, t):
         #DATA = [np.linspace(0,100, np.size(stockData)), stockData]
         #DATA[0].append(t+0.1)
         #DATA[1].append(np.sin(t))
-        A = 15
+        A = 20
         DATA = np.array([np.linspace(0+t, 1+t, A), np.array([np.sin(x) + np.cos(x/4) + ((x-t)/1500000) + (random.uniform(0,0) / 10) for x in np.linspace(t,t+12,A)])])
         DATAdim = len(DATA)
         binCount = A * 3
-        out = forecaster(DATA, 10, 400, binCount) #signalSamples, phaseSamples, binCount
+        out = forecaster(DATA, 10, 60, binCount) #signalSamples, phaseSamples, binCount
 
         weights = np.array([np.full((len(out["data"][0][0])), w) for w in out["weights"]]).flatten()
         colours = []
