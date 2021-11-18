@@ -64,7 +64,7 @@ def forecaster(data, phaseSamples):
         lens.append(len(tempDists))
         allDists.extend(tempDists)
         dists.append(np.mean(tempDists))
-        print(np.round(s/phaseSamples, 2))
+        #print(np.round(s/phaseSamples, 2))
     maxDist = max(allDists)
     maxLen = dataLen - 1
     out = [[] for i in range(dataDims + 1)]
@@ -76,7 +76,7 @@ def forecaster(data, phaseSamples):
                 out[dim].insert(bisec, dataSims[s][dim][i])
             out[-1].insert(bisec, weight)
         #print(tempDistsMean)
-        print(np.round(s/phaseSamples, 2))
+        #print(np.round(s/phaseSamples, 2))
 	
     idx = np.where((out[0]<dataDiff[0][-1])*(out[0]>dataDiff[0][0]))[0]	
     binCount = len(data[0]) #how many bins?
@@ -95,10 +95,10 @@ def forecaster(data, phaseSamples):
             if dim > 0:
                 for bin in range(len(binBounds[dim])-1): #binning
                     #try:
-                    binOut[side][dim].append(np.average(out[dim][binBounds[side][bin]:binBounds[side][bin+1]], weights=np.array(out[-1][binBounds[side][bin]:binBounds[side][bin+1]])**1) * binWidth)
+                    binOut[side][dim].append(np.average(out[dim][binBounds[side][bin]:binBounds[side][bin+1]], weights=np.array(out[-1][binBounds[side][bin]:binBounds[side][bin+1]])**100) * binWidth)
                     #except Exception as e:
-                        #print(e, "FAIL", binBounds[side][bin], binBounds[side][bin+1])
-                        #binOut[side][dim].append(0)
+                    #print(e, "FAIL", binBounds[side][bin], binBounds[side][bin+1])
+                    #binOut[side][dim].append(0)
                 if side == 0: #pre center
                     temp = binOut[side][dim]
                     a = data[dim][0]
@@ -107,6 +107,8 @@ def forecaster(data, phaseSamples):
                         a -= temp[i]
                         undiff[dim].append(a)#.insert(-1, a)
                     undiff[dim] = undiff[dim][::-1]
+                    undiff[0].extend(list(np.linspace(dataDiff[0][0] - timeRange, dataDiff[0][-1] - timeRange, len(binOut[0][1])+1))[:-1])
+                    undiff[0].append(data[0][0])
                 elif side == 1: #post center
                     temp = binOut[side][dim]
                     b = data[dim][-1]
@@ -114,10 +116,8 @@ def forecaster(data, phaseSamples):
                     for i in range(len(temp)):
                         b += temp[i]
                         undiff[dim].append(b)
-    undiff[0] = list(np.linspace(dataDiff[0][0] - timeRange, dataDiff[0][-1] - timeRange, len(binOut[0][1])+1))[:-1]
-    undiff[0].append(data[0][0])
-    undiff[0].append(data[0][-1])
-    undiff[0].extend(list(np.linspace(dataDiff[0][0] + timeRange, dataDiff[0][-1] + timeRange, len(binOut[1][1])+1))[1:])
+                    undiff[0].append(data[0][-1])
+                    undiff[0].extend(list(np.linspace(dataDiff[0][0] + timeRange, dataDiff[0][-1] + timeRange, len(binOut[1][1])+1))[1:])
 
     # #kernel moving average
     # binWidth = (dataDiff[0][-1] - dataDiff[0][0]) / 100
@@ -136,34 +136,42 @@ def forecaster(data, phaseSamples):
     #             weights[dim] += out[-1][idx[j]]
     #     outSmooth.append(np.array(sums) / np.array(weights))
 
-    print("fps", np.round(1 / (time.perf_counter() - startTime),2))
+    #print("fps", np.round(1 / (time.perf_counter() - startTime),2))
     return undiff
 
 if __name__ == "__main__":
     global t
-    t = -0.1
-    stockData = s.getStockData()[::7] / 10
+    global out
+    t = -0.0001
+    out = []
+    stockData = s.getStockData()
+    stockData = stockData[::int(np.ceil(len(stockData)/2000000))]
     stockData -= np.mean(stockData)
+    stockData /= (np.amax(stockData) / 10)
     def update(ev):
         global t
+        global stockData
         if t < 0:
             view.camera.center = [0,0,30]
             view.camera.rotation1 = Quaternion.create_from_euler_angles(*[0,0,0], degrees=True)
             view.camera.scale_factor = 1
-        t += 0.01
-        #data = [np.linspace(0,10,30), +np.cos(np.linspace(0+t,10+t,30))+np.sin(np.linspace(0+t,20+t,30))]
-        data = [np.linspace(-10,10,len(stockData)), stockData]
-        out = forecaster(data, 1000)
-        out = np.transpose(out)
+        if t < len(stockData)-4:
+            t += 1
+            #data = [np.linspace(0,10,15), +np.cos(np.linspace(0+t,10+t,15))+np.sin(np.linspace(0+t,20+t,15))]
+            #data = [np.linspace(-10,10,int(t+3)), stockData[:int(t+3)]]
+            data = [np.linspace(-10,10,int(len(stockData))), stockData]
+            out = forecaster(data, 30)
+            out = np.transpose(out)
         
-        cnct = [[i, i+1] for i in range(len(out) - 1)]
-        del cnct[(len(cnct)//2)]
-        scatterBase.set_data(np.transpose(data), connect=np.array([[i, i+1] for i in range(len(data[0]) - 1)]), color=(1, 1, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=4, face_color=(0.5, 0.5, 1, 0)) #np.zeros(np.size(DATA, 1))
-        scatterBinned.set_data(out, connect=np.array(cnct), color=(0.5, 0.5, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=2, face_color=(0.5, 0.5, 1, 0))
+            cnct = [[i, i+1] for i in range(len(out) - 1)]
+            del cnct[(len(cnct)//2)]
+            scatterBase.set_data(np.transpose(data), connect=np.array([[i, i+1] for i in range(len(data[0]) - 1)]), color=(1, 1, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=3, face_color=(0.5, 0.5, 1, 0)) #np.zeros(np.size(DATA, 1))
+            scatterBinned.set_data(out, connect=np.array(cnct), color=(0.5, 0.5, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=2, face_color=(0.5, 0.5, 1, 0))
+            timer.stop()
 
     timer = app.Timer()
     timer.connect(update)
-    timer.start(0)
+    timer.start(0.25)
     if sys.flags.interactive == 0:
         canvas.show()
         app.run()
