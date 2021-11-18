@@ -35,13 +35,20 @@ view.add(scatterDiff)
 #view.camera = scene.TurntableCamera(up='z')
 axis = visuals.XYZAxis(parent=view.scene)
 
-def acorr(signal):
-    out = np.array([])
-    dims = len(signal)
-    out = np.array(([[np.mean(np.abs(signal[d][:-i] - signal[d][i:])) * i for i in range(1,len(signal[d]))] for d in range(dims)]))
-    return np.sum(out**2,axis=0)**(1/2)
-
 if __name__ == "__main__":
+    class ExchangeUser:
+        def __init__(self, balance):
+            self.balance = balance
+            self.holding = 0
+        #def getPortfolioValue():
+            #return self.balance + self.holding*
+
+    def acorr(signal):
+        out = np.array([])
+        dims = len(signal)
+        out = np.array(([[np.mean(np.abs(signal[d][:-i] - signal[d][i:])) * i for i in range(1,len(signal[d]))] for d in range(dims)]))
+        return np.sum(out**2,axis=0)**(1/2)
+
     global t
     t = 2
     stockData = s.getStockData()
@@ -52,7 +59,7 @@ if __name__ == "__main__":
     def update(ev):
         global t
         t += 1
-        if t > len(stockData[0]):
+        if t >= len(stockData[0]):
             timer.stop()
         #length = 100
         length = t
@@ -79,7 +86,7 @@ if __name__ == "__main__":
             good[good < 1] = 1/good[good < 1]
             bad = np.array(outcomes)[~correct]
             bad[bad > 1] = 1/bad[bad > 1]
-            print("DAY", t, "ACCURACY", np.round(np.count_nonzero(correct) / len(correct),2), "RETURN ON INITIAL PER YEAR", ((np.prod(good) * np.prod(bad)) ** (1/(t/365)) - 1) * 100, "%")
+            print("DAY", t, "FORECAST ACCURACY", np.round(np.count_nonzero(correct) / len(correct),2), "GAIN:LOSS RATIO", np.prod(good)/(1/np.prod(bad)), "RETURN ON INITIAL PER YEAR", ((np.prod(good) * np.prod(bad)) ** (1/(t/365)) - 1) * 100, "%")
 
         #scatterBase.set_data(np.transpose([x*scaleX,a*scaleY]), color=(1, 1, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=3, face_color=(0.5, 0.5, 1, 0))
         #scatterBinned.set_data(np.transpose([(x[1:]+(length-2))*scaleX,out*scaleY]), connect=np.array([[i, i+1] for i in range(length-2)]), color=(0.5, 0.5, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=2, face_color=(0.5, 0.5, 1, 0))
