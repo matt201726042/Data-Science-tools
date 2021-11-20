@@ -52,26 +52,31 @@ if __name__ == "__main__":
         def getBalance(self):
             return self.balance
         def order(self, direction, volume, price): #direction 1 is LONG, direction -1 is SHORT
-            print("DIRECTION", direction, "VOLUME", volume, "PRICE", price, "BALANCE", self.balance, "HOLDING", self.holding)
-            if direction > 0 and (volume * price) <= self.balance:
-                self.holding += volume
-                self.balance -= volume * price
-                self.fees += volume * price * 0.002
-            elif direction < 0 and (volume * price) <= self.balance + (self.holding * price):
-                self.holding -= volume
-                self.balance += volume * price
-                self.fees += volume * price * 0.002
+            #print("DIRECTION", direction, "VOLUME", volume, "PRICE", price, "BALANCE", self.balance, "HOLDING", self.holding)
+            if self.balance >= 0:
+                if direction > 0 and (volume * price) <= self.balance:
+                    self.holding += volume
+                    self.balance -= volume * price
+                    self.fees += volume * price * 0.002
+                elif direction < 0 and (volume * price) <= self.balance + (self.holding * price):
+                    self.holding -= volume
+                    self.balance += volume * price
+                    self.fees += volume * price * 0.002
+                else:
+                    print("FAIL")
+                    return False #FAIL
+                return True
             else:
-                print("FAIL")
-                return False #FAIL
-            return True
+                self.balance = -0.0001
+                self.fees = 0
+                self.holding = 0
         def getMaxOrderVol(self, price):
             return self.balance / price
 
     def acorr(signal):
         out = np.array([])
         dims = len(signal)
-        out = np.array(([[np.median(np.abs(signal[d][:-i] - signal[d][i:])) * i for i in range(1,len(signal[d]))] for d in range(dims)]))
+        out = np.array(([[np.mean(np.abs(signal[d][:-i] - signal[d][i:])) * i for i in range(1,len(signal[d]))] for d in range(dims)]))
         return np.sum(out**2,axis=0)**(1/2)
 
     global t
@@ -108,19 +113,15 @@ if __name__ == "__main__":
         scaleY = 1/np.amax(a)
         preds.append((out[1] / out[0]))
         if len(preds) > 2:
-            #print(-np.sign(user.getHolding()), user.getHolding(), a[-1], user.getBalance())
             user.order(-np.sign(user.getHolding()), np.abs(user.getHolding()), a[-1])
-            #print(-np.sign(user.getHolding()), user.getHolding(), a[-1], user.getBalance())
         if len(preds) > 1:
             profits.append(user.getPortfolioValue(a[-1]))
-            #print("PREDS", preds[-1])
+            vault = np.clip(a[-1] / user.getPortfolioValue(a[-1]), 0, 1)
             if preds[-1] > 1:
-                print("MAXVOL", user.getMaxOrderVol(a[-1]))
-                user.order(1,user.getMaxOrderVol(a[-1]),a[-1])
+                user.order(1,user.getMaxOrderVol(a[-1]) * vault,a[-1])
             elif preds[-1] < 1:
-                print("MAXVOL", user.getMaxOrderVol(a[-1]))
-                user.order(-1,user.getMaxOrderVol(a[-1]),a[-1])
-            #print("DAY", t, "PROFIT", profits[-1], "RETURNS ON INITIAL PER YEAR", ((profits[-1]/a[0]) ** (1/(t/365)) - 1) * 100, "%")
+                user.order(-1,user.getMaxOrderVol(a[-1]) * vault,a[-1])
+            print("DAY", t, "RETURNS ON INITIAL PER YEAR", ((profits[-1]/a[0]) ** (1/(t/365)) - 1) * 100, "%")
             scatterProfit.set_data(np.transpose([x[3:]*scaleX, np.array(profits)*scaleY]), color=(0.5, 1, 0.5, 1), edge_color=(0.5, 1, 0.5, 0), width=3, face_color=(0.5, 0.5, 1, 0))
         #sfs = input()
         scatterBase.set_data(np.transpose([x*scaleX,a*scaleY]), color=(1, 1, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=3, face_color=(0.5, 0.5, 1, 0))
