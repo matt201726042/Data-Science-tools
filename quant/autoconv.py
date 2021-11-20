@@ -44,16 +44,21 @@ if __name__ == "__main__":
             self.holding = 0 #in terms of volume
             self.positions = []
             self.fees = 0
+            self.vault = 0
             print("BALANCE", self.balance, "HOLDING", self.holding)
         def getPortfolioValue(self, price):
-            return self.balance + (self.holding * price) - self.fees
+            return (self.balance + (self.holding * price) + self.vault) - self.fees
         def getHolding(self):
             return self.holding
         def getBalance(self):
             return self.balance
         def order(self, direction, volume, price): #direction 1 is LONG, direction -1 is SHORT
             #print("DIRECTION", direction, "VOLUME", volume, "PRICE", price, "BALANCE", self.balance, "HOLDING", self.holding)
-            if self.balance >= 0:
+            if self.getPortfolioValue(price) < 0: #KILL ACCOUNT
+                self.balance = 0
+                self.holding = 0
+                self.fees = 0
+            elif self.balance >= 0:
                 if direction > 0 and (volume * price) <= self.balance:
                     self.holding += volume
                     self.balance -= volume * price
@@ -63,16 +68,22 @@ if __name__ == "__main__":
                     self.balance += volume * price
                     self.fees += volume * price * 0.002
                 else:
-                    print("FAIL")
+                    print("FAIL", direction, volume, price, self.balance)
                     return False #FAIL
                 return True
+        def getMaxOrderVol(self, direction, price):
+            if direction > 0:
+                return max(self.balance / price,0)
+            elif direction < 0:
+                return max((self.balance + (self.holding * price)) / price,0)
             else:
-                pass
-                #self.balance = -0.0001
-                #self.fees = 0
-                #self.holding = 0
-        def getMaxOrderVol(self, price):
-            return self.balance / price
+                return 0
+        def addToVault(self, perc):
+            self.vault += perc * self.balance
+            self.balance -= perc * self.balance
+        def getVault(self):
+            return self.vault
+
 
     def acorr(signal):
         out = np.array([])
@@ -113,15 +124,15 @@ if __name__ == "__main__":
         scaleX = 1/np.amax(x)
         scaleY = 1/np.amax(a)
         preds.append((out[1] / out[0]))
-        #preds.append(stockData[1][t] / stockData[1][t-1])
         if len(preds) > 2 and np.sign(preds[-1] - 1) != np.sign(preds[-2] - 1):
-            user.order(-np.sign(user.getHolding()), np.abs(user.getHolding()), a[-1])
+            user.order(-np.sign(user.getHolding()), min(np.abs(user.getHolding()), user.getMaxOrderVol(-np.sign(user.getHolding()), a[-1])), a[-1])
         if (len(preds) > 2 and np.sign(preds[-1] - 1) != np.sign(preds[-2] - 1)) or len(preds) > 1:
+            #user.addToVault(np.clip((1 - (a[0] / user.getPortfolioValue(a[-1]))) - (user.getVault() / user.getPortfolioValue(a[-1])),0,1))
             profits.append(user.getPortfolioValue(a[-1]))
             if preds[-1] > 1:
-                user.order(1,user.getMaxOrderVol(a[-1]),a[-1])
+                user.order(1,user.getMaxOrderVol(1, a[-1]),a[-1])
             elif preds[-1] < 1:
-                user.order(-1,user.getMaxOrderVol(a[-1]),a[-1])
+                user.order(-1,user.getMaxOrderVol(-1, a[-1]),a[-1])
             print("DAY", t, "RETURNS ON INITIAL PER YEAR", ((profits[-1]/a[0]) ** (1/(t/365)) - 1) * 100, "%")
             scatterProfit.set_data(np.transpose([x[3:]*scaleX, np.array(profits)*scaleY]), color=(0.5, 1, 0.5, 1), edge_color=(0.5, 1, 0.5, 0), width=3, face_color=(0.5, 0.5, 1, 0))
         #sfs = input()
