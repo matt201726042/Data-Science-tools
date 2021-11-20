@@ -55,10 +55,12 @@ if __name__ == "__main__":
         def order(self, direction, volume, price): #direction 1 is LONG, direction -1 is SHORT
             #print("DIRECTION", direction, "VOLUME", volume, "PRICE", price, "BALANCE", self.balance, "HOLDING", self.holding)
             if self.getPortfolioValue(price) < 0: #KILL ACCOUNT
+                print("KILL.")
                 self.balance = 0
                 self.holding = 0
                 self.fees = 0
             elif self.balance >= 0:
+                volume = float(str(volume)[:8])
                 if direction > 0 and (volume * price) <= self.balance:
                     self.holding += volume
                     self.balance -= volume * price
@@ -68,7 +70,9 @@ if __name__ == "__main__":
                     self.balance += volume * price
                     self.fees += volume * price * 0.002
                 else:
-                    print("FAIL", direction, volume, price, self.balance)
+                    print("FAIL", direction, volume, price, self.balance, self.holding)
+                    print((volume * price))
+                    x = input()
                     return False #FAIL
                 return True
         def getMaxOrderVol(self, direction, price):
@@ -125,16 +129,18 @@ if __name__ == "__main__":
         scaleY = 1/np.amax(a)
         preds.append((out[1] / out[0]))
         if len(preds) > 2 and np.sign(preds[-1] - 1) != np.sign(preds[-2] - 1):
+            #print("ERASE")
             user.order(-np.sign(user.getHolding()), min(np.abs(user.getHolding()), user.getMaxOrderVol(-np.sign(user.getHolding()), a[-1])), a[-1])
-        if (len(preds) > 2 and np.sign(preds[-1] - 1) != np.sign(preds[-2] - 1)) or len(preds) > 1:
-            #user.addToVault(np.clip((1 - (a[0] / user.getPortfolioValue(a[-1]))) - (user.getVault() / user.getPortfolioValue(a[-1])),0,1))
-            profits.append(user.getPortfolioValue(a[-1]))
+        profits.append(user.getPortfolioValue(a[-1]))
+        if (len(preds) > 2 and np.sign(preds[-1] - 1) != np.sign(preds[-2] - 1)) or len(preds) == 2:
+            user.addToVault(np.clip((1 - (a[0] / user.getPortfolioValue(a[-1]))) - (user.getVault() / user.getPortfolioValue(a[-1])),0,1))
+            #print("MAKE")
             if preds[-1] > 1:
                 user.order(1,user.getMaxOrderVol(1, a[-1]),a[-1])
             elif preds[-1] < 1:
                 user.order(-1,user.getMaxOrderVol(-1, a[-1]),a[-1])
             print("DAY", t, "RETURNS ON INITIAL PER YEAR", ((profits[-1]/a[0]) ** (1/(t/365)) - 1) * 100, "%")
-            scatterProfit.set_data(np.transpose([x[3:]*scaleX, np.array(profits)*scaleY]), color=(0.5, 1, 0.5, 1), edge_color=(0.5, 1, 0.5, 0), width=3, face_color=(0.5, 0.5, 1, 0))
+        scatterProfit.set_data(np.transpose([x[2:]*scaleX, np.array(profits)*scaleY]), color=(0.5, 1, 0.5, 1), edge_color=(0.5, 1, 0.5, 0), width=3, face_color=(0.5, 0.5, 1, 0))
         #sfs = input()
         scatterBase.set_data(np.transpose([x*scaleX,a*scaleY]), color=(1, 1, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=3, face_color=(0.5, 0.5, 1, 0))
         scatterBinned.set_data(np.transpose([(x[1:]+(length-2))*scaleX,out*scaleY]), connect=np.array([[i, i+1] for i in range(length-2)]), color=(0.5, 0.5, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=2, face_color=(0.5, 0.5, 1, 0))
