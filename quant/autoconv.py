@@ -67,9 +67,10 @@ if __name__ == "__main__":
                     return False #FAIL
                 return True
             else:
-                self.balance = -0.0001
-                self.fees = 0
-                self.holding = 0
+                pass
+                #self.balance = -0.0001
+                #self.fees = 0
+                #self.holding = 0
         def getMaxOrderVol(self, price):
             return self.balance / price
 
@@ -112,15 +113,15 @@ if __name__ == "__main__":
         scaleX = 1/np.amax(x)
         scaleY = 1/np.amax(a)
         preds.append((out[1] / out[0]))
-        if len(preds) > 2:
+        #preds.append(stockData[1][t] / stockData[1][t-1])
+        if len(preds) > 2 and np.sign(preds[-1] - 1) != np.sign(preds[-2] - 1):
             user.order(-np.sign(user.getHolding()), np.abs(user.getHolding()), a[-1])
-        if len(preds) > 1:
+        if (len(preds) > 2 and np.sign(preds[-1] - 1) != np.sign(preds[-2] - 1)) or len(preds) > 1:
             profits.append(user.getPortfolioValue(a[-1]))
-            vault = np.clip(a[-1] / user.getPortfolioValue(a[-1]), 0, 1)
             if preds[-1] > 1:
-                user.order(1,user.getMaxOrderVol(a[-1]) * vault,a[-1])
+                user.order(1,user.getMaxOrderVol(a[-1]),a[-1])
             elif preds[-1] < 1:
-                user.order(-1,user.getMaxOrderVol(a[-1]) * vault,a[-1])
+                user.order(-1,user.getMaxOrderVol(a[-1]),a[-1])
             print("DAY", t, "RETURNS ON INITIAL PER YEAR", ((profits[-1]/a[0]) ** (1/(t/365)) - 1) * 100, "%")
             scatterProfit.set_data(np.transpose([x[3:]*scaleX, np.array(profits)*scaleY]), color=(0.5, 1, 0.5, 1), edge_color=(0.5, 1, 0.5, 0), width=3, face_color=(0.5, 0.5, 1, 0))
         #sfs = input()
