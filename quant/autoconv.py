@@ -32,30 +32,57 @@ scatterBinned = Plot3D()
 view.add(scatterBinned)
 scatterDiff = Plot3D()
 view.add(scatterDiff)
+scatterProfit = Plot3D()
+view.add(scatterProfit)
 #view.camera = scene.TurntableCamera(up='z')
 axis = visuals.XYZAxis(parent=view.scene)
 
 if __name__ == "__main__":
-    class ExchangeUser:
+    class ExchangeUser: #Slippage is not modelled, bitfinex fees are
         def __init__(self, balance):
             self.balance = balance
-            self.holding = 0
-        #def getPortfolioValue():
-            #return self.balance + self.holding*
+            self.holding = 0 #in terms of volume
+            self.positions = []
+            self.fees = 0
+            print("BALANCE", self.balance, "HOLDING", self.holding)
+        def getPortfolioValue(self, price):
+            return self.balance + (self.holding * price) - self.fees
+        def getHolding(self):
+            return self.holding
+        def getBalance(self):
+            return self.balance
+        def order(self, direction, volume, price): #direction 1 is LONG, direction -1 is SHORT
+            print("DIRECTION", direction, "VOLUME", volume, "PRICE", price, "BALANCE", self.balance, "HOLDING", self.holding)
+            if direction > 0 and (volume * price) <= self.balance:
+                self.holding += volume
+                self.balance -= volume * price
+                self.fees += volume * price * 0.002
+            elif direction < 0 and (volume * price) <= self.balance + (self.holding * price):
+                self.holding -= volume
+                self.balance += volume * price
+                self.fees += volume * price * 0.002
+            else:
+                print("FAIL")
+                return False #FAIL
+            return True
+        def getMaxOrderVol(self, price):
+            return self.balance / price
 
     def acorr(signal):
         out = np.array([])
         dims = len(signal)
-        out = np.array(([[np.mean(np.abs(signal[d][:-i] - signal[d][i:])) * i for i in range(1,len(signal[d]))] for d in range(dims)]))
+        out = np.array(([[np.median(np.abs(signal[d][:-i] - signal[d][i:])) * i for i in range(1,len(signal[d]))] for d in range(dims)]))
         return np.sum(out**2,axis=0)**(1/2)
 
     global t
     t = 2
     stockData = s.getStockData()
-    stockData = [np.arange(len(stockData["Close"])), stockData["Close"], stockData["Volume"]]
-    stockData = np.transpose(np.transpose(stockData)[::int(np.ceil(len(stockData)/2000000))])
+    stockData = [np.arange(len(stockData["Close"])), stockData["Close"], stockData["Volume"], stockData["High"] - stockData["Low"]]
+    stockData = np.transpose(np.transpose(stockData)[::int(np.ceil(len(stockData)/20000000))])
+
     preds = []
-    outcomes = []
+    profits = []
+    user = ExchangeUser(stockData[1][0])
     def update(ev):
         global t
         t += 1
@@ -69,8 +96,9 @@ if __name__ == "__main__":
         a = stockData[1][:t]
         y = np.diff(a)
         y2 = np.diff(stockData[2][:t])
+        y3 = np.diff(stockData[3][:t])
 
-        a1 = acorr([y])
+        a1 = acorr([y,y2,y3])
         a1 = np.concatenate([[0],(1-((a1 - np.amin(a1)) / (np.amax(a1) - np.amin(a1)))) ** 100])
         out = signal.convolve(y,a1) / signal.convolve(a1,np.ones(length-1))
         out = np.concatenate([[a[-1]], out[length-1:]])
@@ -79,18 +107,25 @@ if __name__ == "__main__":
         scaleX = 1/np.amax(x)
         scaleY = 1/np.amax(a)
         preds.append((out[1] / out[0]))
+        if len(preds) > 2:
+            #print(-np.sign(user.getHolding()), user.getHolding(), a[-1], user.getBalance())
+            user.order(-np.sign(user.getHolding()), np.abs(user.getHolding()), a[-1])
+            #print(-np.sign(user.getHolding()), user.getHolding(), a[-1], user.getBalance())
         if len(preds) > 1:
-            outcomes.append((a[-1] / a[-2]))
-            correct = np.equal(np.sign(np.array(outcomes)-1), np.sign(np.array(preds[:-1])-1))
-            good = np.array(outcomes)[correct]
-            good[good < 1] = 1/good[good < 1]
-            bad = np.array(outcomes)[~correct]
-            bad[bad > 1] = 1/bad[bad > 1]
-            print("DAY", t, "FORECAST ACCURACY", np.round(np.count_nonzero(correct) / len(correct),2), "GAIN:LOSS RATIO", np.prod(good)/(1/np.prod(bad)), "RETURN ON INITIAL PER YEAR", ((np.prod(good) * np.prod(bad)) ** (1/(t/365)) - 1) * 100, "%")
-
-        #scatterBase.set_data(np.transpose([x*scaleX,a*scaleY]), color=(1, 1, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=3, face_color=(0.5, 0.5, 1, 0))
-        #scatterBinned.set_data(np.transpose([(x[1:]+(length-2))*scaleX,out*scaleY]), connect=np.array([[i, i+1] for i in range(length-2)]), color=(0.5, 0.5, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=2, face_color=(0.5, 0.5, 1, 0))
-        #scatterDiff.set_data(np.transpose([x[1:]*scaleX,a1]),connect=np.array([[i, i+1] for i in range(length-2)]), color=(1, 0.5, 0.5, 1), edge_color=(1, 0.5, 0.5, 0), width=2, face_color=(1, 0.5, 0.5, 0))
+            profits.append(user.getPortfolioValue(a[-1]))
+            #print("PREDS", preds[-1])
+            if preds[-1] > 1:
+                print("MAXVOL", user.getMaxOrderVol(a[-1]))
+                user.order(1,user.getMaxOrderVol(a[-1]),a[-1])
+            elif preds[-1] < 1:
+                print("MAXVOL", user.getMaxOrderVol(a[-1]))
+                user.order(-1,user.getMaxOrderVol(a[-1]),a[-1])
+            #print("DAY", t, "PROFIT", profits[-1], "RETURNS ON INITIAL PER YEAR", ((profits[-1]/a[0]) ** (1/(t/365)) - 1) * 100, "%")
+            scatterProfit.set_data(np.transpose([x[3:]*scaleX, np.array(profits)*scaleY]), color=(0.5, 1, 0.5, 1), edge_color=(0.5, 1, 0.5, 0), width=3, face_color=(0.5, 0.5, 1, 0))
+        #sfs = input()
+        scatterBase.set_data(np.transpose([x*scaleX,a*scaleY]), color=(1, 1, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=3, face_color=(0.5, 0.5, 1, 0))
+        scatterBinned.set_data(np.transpose([(x[1:]+(length-2))*scaleX,out*scaleY]), connect=np.array([[i, i+1] for i in range(length-2)]), color=(0.5, 0.5, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=2, face_color=(0.5, 0.5, 1, 0))
+        scatterDiff.set_data(np.transpose([x[1:]*scaleX,a1]),connect=np.array([[i, i+1] for i in range(length-2)]), color=(1, 0.5, 0.5, 1), edge_color=(1, 0.5, 0.5, 0), width=2, face_color=(1, 0.5, 0.5, 0))
     timer = app.Timer()
     timer.connect(update)
     timer.start(0)
