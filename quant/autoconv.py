@@ -133,18 +133,19 @@ if __name__ == "__main__":
             user.order(-np.sign(user.getHolding()), min(np.abs(user.getHolding()), user.getMaxOrderVol(-np.sign(user.getHolding()), a[-1])), a[-1])
         profits.append(user.getPortfolioValue(a[-1]))
         if (len(preds) > 2 and np.sign(preds[-1] - 1) != np.sign(preds[-2] - 1)) or len(preds) == 2:
-            user.addToVault(np.clip((1 - (a[0] / user.getPortfolioValue(a[-1]))) - (user.getVault() / user.getPortfolioValue(a[-1])),0,1))
+            user.addToVault(np.clip((1 - (a[-1] / user.getPortfolioValue(a[-1]))) - (user.getVault() / user.getPortfolioValue(a[-1])),0,1))
             #print("MAKE")
             if preds[-1] > 1:
                 user.order(1,user.getMaxOrderVol(1, a[-1]),a[-1])
             elif preds[-1] < 1:
                 user.order(-1,user.getMaxOrderVol(-1, a[-1]),a[-1])
+        if t % 100 == 0 or t == len(stockData[0]) - 1:
             print("DAY", t, "RETURNS ON INITIAL PER YEAR", ((profits[-1]/a[0]) ** (1/(t/365)) - 1) * 100, "%")
-        scatterProfit.set_data(np.transpose([x[2:]*scaleX, np.array(profits)*scaleY]), color=(0.5, 1, 0.5, 1), edge_color=(0.5, 1, 0.5, 0), width=3, face_color=(0.5, 0.5, 1, 0))
-        #sfs = input()
-        scatterBase.set_data(np.transpose([x*scaleX,a*scaleY]), color=(1, 1, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=3, face_color=(0.5, 0.5, 1, 0))
-        scatterBinned.set_data(np.transpose([(x[1:]+(length-2))*scaleX,out*scaleY]), connect=np.array([[i, i+1] for i in range(length-2)]), color=(0.5, 0.5, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=2, face_color=(0.5, 0.5, 1, 0))
-        scatterDiff.set_data(np.transpose([x[1:]*scaleX,a1]),connect=np.array([[i, i+1] for i in range(length-2)]), color=(1, 0.5, 0.5, 1), edge_color=(1, 0.5, 0.5, 0), width=2, face_color=(1, 0.5, 0.5, 0))
+            scatterProfit.set_data(np.transpose([x[2:]*scaleX, np.array(profits)*scaleY]), color=(0.5, 1, 0.5, 1), edge_color=(0.5, 1, 0.5, 0), width=3, face_color=(0.5, 0.5, 1, 0))
+            #sfs = input()
+            scatterBase.set_data(np.transpose([x*scaleX,a*scaleY]), color=(1, 1, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=3, face_color=(0.5, 0.5, 1, 0))
+            scatterBinned.set_data(np.transpose([(x[1:]+(length-2))*scaleX,out*scaleY]), connect=np.array([[i, i+1] for i in range(length-2)]), color=(0.5, 0.5, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=2, face_color=(0.5, 0.5, 1, 0))
+            scatterDiff.set_data(np.transpose([x[1:]*scaleX,a1]),connect=np.array([[i, i+1] for i in range(length-2)]), color=(1, 0.5, 0.5, 1), edge_color=(1, 0.5, 0.5, 0), width=2, face_color=(1, 0.5, 0.5, 0))
     timer = app.Timer()
     timer.connect(update)
     timer.start(0)
