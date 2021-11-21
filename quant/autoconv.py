@@ -9,6 +9,7 @@ from vispy.scene import visuals
 from vispy import app
 from vispy.util.quaternion import Quaternion
 import sys
+import scipy.stats as stats
 
 import stocks as s
 
@@ -45,6 +46,7 @@ if __name__ == "__main__":
             self.positions = []
             self.fees = 0
             self.vault = 0
+            self.kill = False
             print("BALANCE", self.balance, "HOLDING", self.holding)
         def getPortfolioValue(self, price):
             return (self.balance + (self.holding * price) + self.vault) - self.fees
@@ -54,10 +56,11 @@ if __name__ == "__main__":
             return self.balance
         def order(self, direction, volume, price): #direction 1 is LONG, direction -1 is SHORT
             #print("DIRECTION", direction, "VOLUME", volume, "PRICE", price, "BALANCE", self.balance, "HOLDING", self.holding)
-            if self.getPortfolioValue(price) < 0: #KILL ACCOUNT
-                print("KILL.")
+            if self.getPortfolioValue(price) <= 0 or self.balance + self.holding == 0 or self.kill: #KILL ACCOUNT
+                self.kill = True
                 self.balance = 0
                 self.holding = 0
+                self.vault = 0
                 self.fees = 0
             elif self.balance >= 0:
                 volume = float(str(volume)[:8])
@@ -72,7 +75,7 @@ if __name__ == "__main__":
                 else:
                     print("FAIL", direction, volume, price, self.balance, self.holding)
                     print((volume * price))
-                    x = input()
+                    #x = input()
                     return False #FAIL
                 return True
         def getMaxOrderVol(self, direction, price):
@@ -92,7 +95,7 @@ if __name__ == "__main__":
     def acorr(signal):
         out = np.array([])
         dims = len(signal)
-        out = np.array(([[np.mean(np.abs(signal[d][:-i] - signal[d][i:])) * i for i in range(1,len(signal[d]))] for d in range(dims)]))
+        out = np.array(([[np.mean(np.abs(signal[d][:-i] - signal[d][i:])) * (np.std(np.mean(np.abs(signal[d][:-i] - signal[d][i:])))+0.000001) for i in range(1,len(signal[d]))] for d in range(dims)]))
         return np.sum(out**2,axis=0)**(1/2)
 
     global t
@@ -130,16 +133,16 @@ if __name__ == "__main__":
         preds.append((out[1] / out[0]))
         if len(preds) > 2 and np.sign(preds[-1] - 1) != np.sign(preds[-2] - 1):
             #print("ERASE")
-            user.order(-np.sign(user.getHolding()), min(np.abs(user.getHolding()), user.getMaxOrderVol(-np.sign(user.getHolding()), a[-1])), a[-1])
+            user.order(-np.sign(user.getHolding()), min(np.abs(user.getHolding()), user.getMaxOrderVol(-np.sign(user.getHolding()), a[-1]) * 1), a[-1])
         profits.append(user.getPortfolioValue(a[-1]))
         if (len(preds) > 2 and np.sign(preds[-1] - 1) != np.sign(preds[-2] - 1)) or len(preds) == 2:
-            user.addToVault(np.clip((1 - (a[-1] / user.getPortfolioValue(a[-1]))) - (user.getVault() / user.getPortfolioValue(a[-1])),0,1))
+            user.addToVault(np.clip((1 - (a[-1] / user.getPortfolioValue(a[-1]))) - (user.getVault() / user.getPortfolioValue(a[-1])),-1,1))
             #print("MAKE")
             if preds[-1] > 1:
-                user.order(1,user.getMaxOrderVol(1, a[-1]),a[-1])
+                user.order(1,user.getMaxOrderVol(1, a[-1]) * 1,a[-1])
             elif preds[-1] < 1:
-                user.order(-1,user.getMaxOrderVol(-1, a[-1]),a[-1])
-        if t % 100 == 0 or t == len(stockData[0]) - 1:
+                user.order(-1,user.getMaxOrderVol(-1, a[-1]) * 1,a[-1])
+        if t % 1 == 0 or t == len(stockData[0]) - 1:
             print("DAY", t, "RETURNS ON INITIAL PER YEAR", ((profits[-1]/a[0]) ** (1/(t/365)) - 1) * 100, "%")
             scatterProfit.set_data(np.transpose([x[2:]*scaleX, np.array(profits)*scaleY]), color=(0.5, 1, 0.5, 1), edge_color=(0.5, 1, 0.5, 0), width=3, face_color=(0.5, 0.5, 1, 0))
             #sfs = input()
