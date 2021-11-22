@@ -1,9 +1,18 @@
 import numpy as np
 
-def acorr(signal):
-    out = np.array([])
-    dims = len(signal)
-    out = np.array(([[np.mean(np.abs(signal[d][:-i] - signal[d][i:])) for i in range(1,len(signal[d]))] for d in range(dims)]))
-    return np.sum(out**2,axis=0)**(1/2)
+p = []
+for i in range(10):
+    a = np.ma.empty(((i*2)+1))
+    a.mask = True
+    a[-(i+1):] = np.arange(i+1) #+i
+    p.append(a)
 
-print(acorr(np.array([[1,2,3],[1,2,3],[1,2,3]])))
+def lagMean(p):
+    lenp = len(p)
+    arr = np.ma.empty((lenp,len(p[-1])))
+    arr.mask = True
+    for i in range(lenp):
+        arr[i,:len(p[i])] = p[i]
+    return np.ma.average(arr, axis=0, weights=np.geomspace(1,1000000000000,num=lenp))[lenp:]
+
+print(lagMean(p))

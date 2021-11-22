@@ -4,7 +4,7 @@ from yahoofinancials import YahooFinancials
 import numpy as np
 
 def getStockData():
-    ticker = yf.Ticker('LTC-GBP')
+    ticker = yf.Ticker('CL=F')
     df = ticker.history(period="max") #https://yahooquery.dpguthrie.com/guide/ticker/historical/
     #stockData = df['Close']
     return df
