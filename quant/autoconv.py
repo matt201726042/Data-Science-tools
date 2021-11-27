@@ -56,7 +56,7 @@ if __name__ == "__main__":
             return self.balance
         def order(self, direction, volume, price): #direction 1 is LONG, direction -1 is SHORT
             #print("DIRECTION", direction, "VOLUME", volume, "PRICE", price, "BALANCE", self.balance, "HOLDING", self.holding)
-            if self.balance + self.holding <= 0 or self.kill: #KILL ACCOUNT
+            if self.getPortfolioValue(price) <= 0 or self.balance + self.holding == 0 or self.kill: #KILL ACCOUNT
                 self.kill = True
                 self.balance = 0
                 self.holding = 0
@@ -91,20 +91,11 @@ if __name__ == "__main__":
         def getVault(self):
             return self.vault
 
-
     def acorr(signal):
         out = np.array([])
         dims = len(signal)
-        out = np.array(([[np.mean(np.abs(signal[d][:-i] - signal[d][i:])) * (np.std(np.mean(np.abs(signal[d][:-i] - signal[d][i:])))+0.000001) * i for i in range(1,len(signal[d]))] for d in range(dims)]))
+        out = np.array(([[np.median(np.abs(signal[d][:-i] - signal[d][i:])) * (np.std(np.mean(np.abs(signal[d][:-i] - signal[d][i:])))+0.000001) * np.log(i) for i in range(1,len(signal[d]))] for d in range(dims)]))
         return np.sum(out**2,axis=0)**(1/2)
-    
-    def lagMean(p):
-        lenp = len(p)
-        arr = np.ma.empty((lenp,len(p[-1])))
-        arr.mask = True
-        for i in range(lenp):
-            arr[i,:len(p[i])] = p[i]
-        return np.ma.average(arr, axis=0, weights=np.geomspace(1,1000000000000,num=lenp))[lenp:]
 
     global t
     t = 2
@@ -116,6 +107,9 @@ if __name__ == "__main__":
     profits = []
     user = ExchangeUser(stockData[1][0])
     p = []
+
+    currentState = [None]
+    desiredState = [None]
     def update(ev):
         global t
         t += 1
@@ -128,40 +122,39 @@ if __name__ == "__main__":
         #a = np.sin((x+t)/25)# * np.cos((x-t)/20)
         a = stockData[1][:t]
         y = np.diff(a)
+        scaleX = 1/np.amax(x)
+        scaleY = 1/np.amax(a)
+
         y2 = np.diff(stockData[2][:t])
         y3 = np.diff(stockData[3][:t])
 
-        a1 = acorr([y,y2]) #y,y2,y3
+        a1 = acorr([y]) #y,y2,y3
         a1 = np.concatenate([[0],(1-((a1 - np.amin(a1)) / (np.amax(a1) - np.amin(a1)))) ** 1000])
         out = (signal.convolve(y,a1) / signal.convolve(a1,np.ones(length-1)))[length-1:]
-
-        l = np.ma.empty(((t*2)-3))
-        l.mask = True
-        l[-(t-2):] = out
-        p.append(l)
-        out = lagMean(p)
-
         out = a[-1] + np.cumsum(out) #in the future do the cumsum of the vector autocorrs for each disp
 
-        scaleX = 1/np.amax(x)
-        scaleY = 1/np.amax(a)
         preds.append((out[0] / a[-1]))
+        outcomes.append(a[-1] / a[-2])
+        #desiredState[0] = [(a[-1] / out[0]), out[0] / a[-1]] #sell, buy
+        #currentState[0] = profits[0] / profits[-1]
+
         if len(preds) > 2 and np.sign(preds[-1] - 1) != np.sign(preds[-2] - 1):
             #print("ERASE")
             user.order(-np.sign(user.getHolding()), min(np.abs(user.getHolding()), user.getMaxOrderVol(-np.sign(user.getHolding()), a[-1]) * 1), a[-1])
         profits.append(user.getPortfolioValue(a[-1]))
         if (len(preds) > 2 and np.sign(preds[-1] - 1) != np.sign(preds[-2] - 1)) or len(preds) == 2:
-            user.addToVault(np.clip((1 - (a[-1] / user.getPortfolioValue(a[-1]))) - (user.getVault() / user.getPortfolioValue(a[-1])),-1,1))
+            correct = np.equal(np.sign(np.array(outcomes)-1), np.sign(np.array(preds[:-1])-1))
+            #user.addToVault(np.clip((1 - (a[-1] / user.getPortfolioValue(a[-1]))) - (user.getVault() / user.getPortfolioValue(a[-1])),-1,1))
             #print("MAKE")
             if preds[-1] > 1:
                 user.order(1,user.getMaxOrderVol(1, a[-1]) * 1,a[-1])
-            elif preds[-1] < 1:
-                user.order(-1,user.getMaxOrderVol(-1, a[-1]) * 1,a[-1])
-        if t % 1 == 0 or t == len(stockData[0]) - 1:
+            #elif preds[-1] < 1:
+               #user.order(-1,user.getMaxOrderVol(-1, a[-1]) * 1,a[-1])
+        if t % 1 == 0 or t == len(stockData[0]) - 1 and t > 4:
             print("DAY", t, "RETURNS ON INITIAL PER YEAR", ((profits[-1]/a[0]) ** (1/(t/365)) - 1) * 100, "%")
             scatterProfit.set_data(np.transpose([x[2:]*scaleX, np.array(profits)*scaleY]), color=(0.5, 1, 0.5, 1), edge_color=(0.5, 1, 0.5, 0), width=3, face_color=(0.5, 0.5, 1, 0))
             scatterBase.set_data(np.transpose([x*scaleX,a*scaleY]), color=(1, 1, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=3, face_color=(0.5, 0.5, 1, 0))
-            scatterBinned.set_data(np.transpose([(x[1:]+(length-2))*scaleX,out*scaleY]), color=(0.5, 0.5, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=2, face_color=(0.5, 0.5, 1, 0))
+            scatterBinned.set_data(np.transpose([(x[2:]+(length-2))*scaleX,out*scaleY]), connect=np.array([[i, i+1] for i in range(length-3)]), color=(0.5, 0.5, 1, 1), edge_color=(0.5, 0.5, 1, 0), width=2, face_color=(0.5, 0.5, 1, 0))
             scatterDiff.set_data(np.transpose([x[1:]*scaleX,a1]),connect=np.array([[i, i+1] for i in range(length-2)]), color=(1, 0.5, 0.5, 1), edge_color=(1, 0.5, 0.5, 0), width=2, face_color=(1, 0.5, 0.5, 0))
     timer = app.Timer()
     timer.connect(update)

@@ -15,4 +15,5 @@ def lagMean(p):
         arr[i,:len(p[i])] = p[i]
     return np.ma.average(arr, axis=0, weights=np.geomspace(1,1000000000000,num=lenp))[lenp:]
 
-print(lagMean(p))
+#print(lagMean(p))
+print([1,2,3][:2])
